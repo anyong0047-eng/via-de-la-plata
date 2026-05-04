@@ -586,7 +586,7 @@ function getExpenses() { return lsGet('camino_expenses') || {}; }
 function getEdits()    { return lsGet('camino_edits')    || {}; }
 
 // ── 동기화 (Google Sheets via Apps Script) ───────────────────────
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbwxnN4KdscsIXQX_v_rNZ_R01cA0C_IuiqHcuWa77BNC0q3VvtKe8RShlrkq7gI08yvuw/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxCMfVTM-fTHXBWzxn7QEtw-D77QQlrFGEZFxacBH-MiidEpXwHwqOZJZ9Oa3YftAj05w/exec';
 
 // ✅ 수정: 경쟁조건 방지 — 전체 데이터를 한 번에 읽고 한 번에 씀
 // 개별 key 저장 대신 전체 snapshot을 저장하는 방식으로 변경
