@@ -10,12 +10,13 @@
 <link rel="manifest" href="/via-de-la-plata/manifest.json">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23C8860A'/%3E%3Ctext x='90' y='125' font-size='100' text-anchor='middle'%3E%F0%9F%90%9A%3C/text%3E%3C/svg%3E">
 <script>
-// iOS 홈화면 앱 모드: start_url로 시작해서 해시가 없음 → localStorage에서 복원
-// standalone 모드에서도 안정적으로 bin ID를 보존하기 위해 조건 완화
+// ?bin= 쿼리 파라미터로 Bin ID를 전달 — iOS 홈화면 앱에서도 안정적으로 작동
 (function() {
-  var saved = localStorage.getItem('camino_bin_id');
-  if (saved && !location.hash.includes('bin=')) {
-    history.replaceState(null, '', '#bin=' + saved);
+  var params = new URLSearchParams(location.search);
+  var binFromUrl = params.get('bin');
+  if (binFromUrl) {
+    // URL에 bin=이 있으면 localStorage에 저장 (새 기기 연결 시)
+    localStorage.setItem('camino_bin_id', binFromUrl);
   }
 })();
 </script>
@@ -598,26 +599,18 @@ function getEdits()    { return lsGet('camino_edits')    || {}; }
 const JSONBIN_KEY = '$2a$10$p6I8pCsvIduNMaDA8l6vpeO.B2kf/YPfCnwGc5cCdpt6tdypFAczi';
 const BIN_ID_KEY = 'camino_bin_id';
 
-// ✅ 수정: 메모리 캐시 + localStorage 우선 — 앱 모드에서 해시가 날아가도 안전
+// ✅ localStorage 우선 — ?bin= 쿼리 파라미터로 기기 간 공유
 let _binId = localStorage.getItem(BIN_ID_KEY) || null;
 
 async function getBinId() {
   // 1순위: 메모리 캐시
   if (_binId) return _binId;
 
-  // 2순위: localStorage (앱 모드에서 해시가 없어도 복원)
+  // 2순위: localStorage (앱 모드 재실행 시 복원)
   const stored = localStorage.getItem(BIN_ID_KEY);
   if (stored) { _binId = stored; return _binId; }
 
-  // 3순위: URL 해시 (브라우저 모드에서 공유 링크로 접속 시)
-  const hm = location.hash.match(/bin=([A-Za-z0-9]+)/);
-  if (hm) {
-    _binId = hm[1];
-    localStorage.setItem(BIN_ID_KEY, _binId);
-    return _binId;
-  }
-
-  // 4순위: 새 Bin 생성 (최초 1회만, localStorage에 영구 저장)
+  // 3순위: 새 Bin 생성 (최초 1회만)
   try {
     const r = await fetch('https://api.jsonbin.io/v3/b', {
       method: 'POST',
@@ -633,10 +626,6 @@ async function getBinId() {
     const data = await r.json();
     _binId = data.metadata.id;
     localStorage.setItem(BIN_ID_KEY, _binId);
-    // 브라우저에서는 해시도 업데이트 (공유용)
-    if (!navigator.standalone) {
-      history.replaceState(null, '', '#bin=' + _binId);
-    }
     return _binId;
   } catch(e) { return null; }
 }
@@ -697,7 +686,8 @@ function saveEdits(data)    { lsSet('camino_edits',    data); remoteSave('edits'
 async function copyShareLink() {
   const id = await getBinId();
   if (!id) { alert('동기화 서버 연결 실패. 잠시 후 다시 시도해주세요.'); return; }
-  const url = location.origin + location.pathname + '#bin=' + id;
+  // ?bin= 쿼리 파라미터 사용 — iOS 홈화면 앱 추가 시에도 start_url에 포함됨
+  const url = location.origin + location.pathname + '?bin=' + id;
   try {
     await navigator.clipboard.writeText(url);
     const btn = document.getElementById('share-btn');
