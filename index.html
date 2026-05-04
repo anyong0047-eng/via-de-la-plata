@@ -10,14 +10,15 @@
 <link rel="manifest" href="/via-de-la-plata/manifest.json">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23C8860A'/%3E%3Ctext x='90' y='125' font-size='100' text-anchor='middle'%3E%F0%9F%90%9A%3C/text%3E%3C/svg%3E">
 <script>
-// ?bin= 쿼리 파라미터로 Bin ID를 전달 — iOS 홈화면 앱에서도 안정적으로 작동
+// Bin ID 고정 — 모든 기기가 동일한 Bin을 바라봄
+// ?bin= 파라미터로 덮어쓰기 가능 (비상용)
 (function() {
-  var params = new URLSearchParams(location.search);
+  var FIXED_BIN = '69de63c736566621a8b1f1e4';
+  var params    = new URLSearchParams(location.search);
   var binFromUrl = params.get('bin');
-  if (binFromUrl) {
-    // URL에 bin=이 있으면 localStorage에 저장 (새 기기 연결 시)
-    localStorage.setItem('camino_bin_id', binFromUrl);
-  }
+  // URL에 명시적으로 다른 bin이 오면 그걸 우선 (비상 override)
+  var finalBin = binFromUrl || FIXED_BIN;
+  localStorage.setItem('camino_bin_id', finalBin);
 })();
 </script>
 <meta name="theme-color" content="#C8860A">
@@ -599,35 +600,14 @@ function getEdits()    { return lsGet('camino_edits')    || {}; }
 const JSONBIN_KEY = '$2a$10$p6I8pCsvIduNMaDA8l6vpeO.B2kf/YPfCnwGc5cCdpt6tdypFAczi';
 const BIN_ID_KEY = 'camino_bin_id';
 
-// ✅ localStorage 우선 — ?bin= 쿼리 파라미터로 기기 간 공유
-let _binId = localStorage.getItem(BIN_ID_KEY) || null;
+// Bin ID는 페이지 로드 시 항상 localStorage에 세팅되어 있음 (head script)
+const FIXED_BIN_ID = '69de63c736566621a8b1f1e4';
+let _binId = localStorage.getItem(BIN_ID_KEY) || FIXED_BIN_ID;
 
 async function getBinId() {
-  // 1순위: 메모리 캐시
   if (_binId) return _binId;
-
-  // 2순위: localStorage (앱 모드 재실행 시 복원)
-  const stored = localStorage.getItem(BIN_ID_KEY);
-  if (stored) { _binId = stored; return _binId; }
-
-  // 3순위: 새 Bin 생성 (최초 1회만)
-  try {
-    const r = await fetch('https://api.jsonbin.io/v3/b', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Master-Key': JSONBIN_KEY,
-        'X-Bin-Name': 'camino-planner-2026',
-        'X-Bin-Private': 'true'
-      },
-      body: JSON.stringify({ expenses: {}, edits: {}, summary_memos: [], checklist: {}, cl_custom: [], ac_cities: [] })
-    });
-    if (!r.ok) return null;
-    const data = await r.json();
-    _binId = data.metadata.id;
-    localStorage.setItem(BIN_ID_KEY, _binId);
-    return _binId;
-  } catch(e) { return null; }
+  _binId = localStorage.getItem(BIN_ID_KEY) || FIXED_BIN_ID;
+  return _binId;
 }
 
 // ✅ 수정: 경쟁조건 방지 — 전체 데이터를 한 번에 읽고 한 번에 씀
