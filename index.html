@@ -9,18 +9,7 @@
 <title>🐚 은의길 플래너</title>
 <link rel="manifest" href="/via-de-la-plata/manifest.json">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23C8860A'/%3E%3Ctext x='90' y='125' font-size='100' text-anchor='middle'%3E%F0%9F%90%9A%3C/text%3E%3C/svg%3E">
-<script>
-// Bin ID 고정 — 모든 기기가 동일한 Bin을 바라봄
-// ?bin= 파라미터로 덮어쓰기 가능 (비상용)
-(function() {
-  var FIXED_BIN = '69de63c736566621a8b1f1e4';
-  var params    = new URLSearchParams(location.search);
-  var binFromUrl = params.get('bin');
-  // URL에 명시적으로 다른 bin이 오면 그걸 우선 (비상 override)
-  var finalBin = binFromUrl || FIXED_BIN;
-  localStorage.setItem('camino_bin_id', finalBin);
-})();
-</script>
+
 <meta name="theme-color" content="#C8860A">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
@@ -596,33 +585,17 @@ function lsSet(k,v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch(
 function getExpenses() { return lsGet('camino_expenses') || {}; }
 function getEdits()    { return lsGet('camino_edits')    || {}; }
 
-// ── 동기화 (jsonbin.io) ───────────────────────────────────────────
-const JSONBIN_KEY = '$2a$10$p6I8pCsvIduNMaDA8l6vpeO.B2kf/YPfCnwGc5cCdpt6tdypFAczi';
-const BIN_ID_KEY = 'camino_bin_id';
-
-// Bin ID는 페이지 로드 시 항상 localStorage에 세팅되어 있음 (head script)
-const FIXED_BIN_ID = '69de63c736566621a8b1f1e4';
-let _binId = localStorage.getItem(BIN_ID_KEY) || FIXED_BIN_ID;
-
-async function getBinId() {
-  if (_binId) return _binId;
-  _binId = localStorage.getItem(BIN_ID_KEY) || FIXED_BIN_ID;
-  return _binId;
-}
+// ── 동기화 (Google Sheets via Apps Script) ───────────────────────
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwxnN4KdscsIXQX_v_rNZ_R01cA0C_IuiqHcuWa77BNC0q3VvtKe8RShlrkq7gI08yvuw/exec';
 
 // ✅ 수정: 경쟁조건 방지 — 전체 데이터를 한 번에 읽고 한 번에 씀
 // 개별 key 저장 대신 전체 snapshot을 저장하는 방식으로 변경
 let _saveTimer = null;
-let _pendingSave = {};
 
 function scheduleSave() {
-  // 300ms 디바운스: 연속 저장 요청을 묶어서 한 번만 전송
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async function() {
-    const id = await getBinId();
-    if (!id) return;
     try {
-      // localStorage의 현재 전체 상태를 한 번에 저장
       const payload = {
         expenses:      lsGet('camino_expenses')      || {},
         edits:         lsGet('camino_edits')         || {},
@@ -631,43 +604,27 @@ function scheduleSave() {
         cl_custom:     lsGet('camino_cl_custom')     || [],
         ac_cities:     lsGet('camino_ac_cities')     || []
       };
-      await fetch('https://api.jsonbin.io/v3/b/' + id, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY },
+      const r = await fetch(GAS_URL, {
+        method: 'POST',
         body: JSON.stringify(payload)
       });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
       setSyncStatus('✅');
       setTimeout(() => setSyncStatus(''), 2000);
     } catch(e) { setSyncStatus('⚠️ 저장 실패'); }
-  }, 300);
+  }, 800);
 }
 
-// remoteSave: 이제 scheduleSave를 호출 (key 파라미터는 무시해도 됨 — 전체 저장)
 async function remoteSave(key, val) {
   scheduleSave();
-}
-
-async function remoteLoad(key) {
-  const id = await getBinId();
-  if (!id) return null;
-  try {
-    const r = await fetch('https://api.jsonbin.io/v3/b/' + id + '/latest', {
-      headers: { 'X-Master-Key': JSONBIN_KEY }
-    });
-    if (!r.ok) return null;
-    const data = await r.json();
-    return data.record ? data.record[key] : null;
-  } catch(e) { return null; }
 }
 
 function saveExpenses(data) { lsSet('camino_expenses', data); remoteSave('expenses', data); }
 function saveEdits(data)    { lsSet('camino_edits',    data); remoteSave('edits',    data); }
 
 async function copyShareLink() {
-  const id = await getBinId();
-  if (!id) { alert('동기화 서버 연결 실패. 잠시 후 다시 시도해주세요.'); return; }
-  // ?bin= 쿼리 파라미터 사용 — iOS 홈화면 앱 추가 시에도 start_url에 포함됨
-  const url = location.origin + location.pathname + '?bin=' + id;
+  // Google Sheets 동기화 — URL에 ID 불필요, 그냥 앱 주소만 공유
+  const url = location.origin + location.pathname;
   try {
     await navigator.clipboard.writeText(url);
     const btn = document.getElementById('share-btn');
@@ -685,22 +642,18 @@ function setSyncStatus(s) {
 async function syncOnLoad() {
   setSyncStatus('🔄');
   try {
-    const id = await getBinId();
-    if (!id) { setSyncStatus('📵'); return; }
-    const r = await fetch('https://api.jsonbin.io/v3/b/' + id + '/latest', {
-      headers: { 'X-Master-Key': JSONBIN_KEY }
-    });
+    const r = await fetch(GAS_URL);
     if (!r.ok) { setSyncStatus('📵'); return; }
-    const data = await r.json();
-    const rec = data.record || {};
+    const json = await r.json();
+    if (!json.ok || !json.data) { setSyncStatus('📵'); return; }
+    const rec = json.data;
     let changed = false;
-    // 각 키가 실제로 데이터가 있을 때만 덮어씀 (빈 객체/배열은 무시)
-    if (rec.expenses && Object.keys(rec.expenses).length)      { lsSet('camino_expenses', rec.expenses);           changed = true; }
-    if (rec.edits    && Object.keys(rec.edits).length)         { lsSet('camino_edits',    rec.edits);              changed = true; }
-    if (rec.summary_memos && rec.summary_memos.length)         { lsSet('camino_summary_memos', rec.summary_memos); changed = true; }
-    if (rec.checklist && Object.keys(rec.checklist).length)    { lsSet('camino_checklist', rec.checklist);         changed = true; }
-    if (rec.cl_custom && rec.cl_custom.length)                 { lsSet('camino_cl_custom', rec.cl_custom);         changed = true; }
-    if (rec.ac_cities && rec.ac_cities.length)                 { lsSet('camino_ac_cities', rec.ac_cities);         changed = true; }
+    if (rec.expenses      && Object.keys(rec.expenses).length)   { lsSet('camino_expenses',      rec.expenses);      changed = true; }
+    if (rec.edits         && Object.keys(rec.edits).length)      { lsSet('camino_edits',          rec.edits);         changed = true; }
+    if (rec.summary_memos && rec.summary_memos.length)           { lsSet('camino_summary_memos',  rec.summary_memos); changed = true; }
+    if (rec.checklist     && Object.keys(rec.checklist).length)  { lsSet('camino_checklist',      rec.checklist);     changed = true; }
+    if (rec.cl_custom     && rec.cl_custom.length)               { lsSet('camino_cl_custom',      rec.cl_custom);     changed = true; }
+    if (rec.ac_cities     && rec.ac_cities.length)               { lsSet('camino_ac_cities',      rec.ac_cities);     changed = true; }
     if (changed) {
       const c = document.getElementById('days-container');
       if (c) { c.innerHTML = ''; buildDays(); }
