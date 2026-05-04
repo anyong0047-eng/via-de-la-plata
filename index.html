@@ -1,0 +1,1510 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="은의길">
+<title>🐚 은의길 플래너</title>
+<link rel="manifest" href="/via-de-la-plata/manifest.json">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23C8860A'/%3E%3Ctext x='90' y='125' font-size='100' text-anchor='middle'%3E%F0%9F%90%9A%3C/text%3E%3C/svg%3E">
+<script>
+// iOS 홈화면 앱 모드: start_url로 시작해서 해시가 없음 → localStorage에서 복원
+// standalone 모드에서도 안정적으로 bin ID를 보존하기 위해 조건 완화
+(function() {
+  var saved = localStorage.getItem('camino_bin_id');
+  if (saved && !location.hash.includes('bin=')) {
+    history.replaceState(null, '', '#bin=' + saved);
+  }
+})();
+</script>
+<meta name="theme-color" content="#C8860A">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --amber: #C8860A;
+    --amber-light: #F5C842;
+    --amber-pale: #FDF3DC;
+    --stone: #6B5E4E;
+    --stone-light: #A89880;
+    --stone-pale: #F5F0EA;
+    --red: #B03A2E;
+    --green: #2E7D5E;
+    --blue: #1A5276;
+    --bg: #FDFAF5;
+    --card: #FFFFFF;
+    --border: #E8DFD0;
+    --text: #2C2218;
+    --text-muted: #8C7B6A;
+    --shadow: 0 2px 12px rgba(100,80,50,0.10);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: 'Noto Sans KR', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* HEADER */
+  .header {
+    background: linear-gradient(160deg, #7B4F2E 0%, #C8860A 100%);
+    color: white; padding: 28px 20px 20px; text-align: center;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 2px 16px rgba(100,60,10,0.25);
+  }
+  .header-title { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 700; letter-spacing: 0.5px; }
+  .header-sub { font-size: 12px; opacity: 0.85; margin-top: 4px; letter-spacing: 1px; }
+  .header-dates { font-size: 13px; margin-top: 8px; background: rgba(255,255,255,0.15); border-radius: 20px; padding: 4px 14px; display: inline-block; }
+
+  /* NAV TABS */
+  .tabs { display: flex; background: white; border-bottom: 1px solid var(--border); overflow-x: auto; overflow-y: visible; scrollbar-width: none; position: sticky; top: 105px; z-index: 99; -webkit-overflow-scrolling: touch; scroll-behavior: smooth; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: 1 0 auto; padding: 10px 10px; font-size: 11px; font-weight: 500; color: var(--text-muted); border-bottom: 2px solid transparent; white-space: nowrap; cursor: pointer; transition: all 0.2s; -webkit-tap-highlight-color: transparent; user-select: none; text-align:center; }
+  .tab.active { color: var(--amber); border-bottom-color: var(--amber); }
+
+  /* SECTIONS */
+  .section { display: none; padding: 16px; }
+  .section.active { display: block; }
+
+  /* SUMMARY CARDS */
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .summary-card { background: white; border-radius: 12px; padding: 14px; border: 1px solid var(--border); box-shadow: var(--shadow); }
+  .summary-card .label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+  .summary-card .value { font-size: 18px; font-weight: 700; color: var(--amber); }
+  .summary-card .sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .summary-card.full { grid-column: 1 / -1; }
+
+  /* INFO ROWS */
+  .info-row { background: white; border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; border: 1px solid var(--border); display: flex; align-items: flex-start; gap: 10px; }
+  .info-row .icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .info-row .content .label { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
+  .info-row .content .value { font-size: 14px; font-weight: 500; }
+  .info-row .content .sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  /* CLASS DAY CARDS */
+  .class-card { background: white; border-radius: 14px; border: 2px solid var(--amber); margin-bottom: 14px; overflow: hidden; box-shadow: var(--shadow); }
+  .class-card-header { background: linear-gradient(135deg, var(--amber) 0%, #E8A020 100%); color: white; padding: 12px 16px; font-size: 13px; font-weight: 700; }
+  .class-card-body { padding: 14px 16px; }
+  .class-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .class-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .class-row .key { color: var(--text-muted); flex-shrink: 0; margin-right: 10px; }
+  .class-row .val { text-align: right; font-weight: 500; }
+  .class-row .val a { color: var(--blue); text-decoration: none; }
+  .class-row .val a.tel { color: var(--green); }
+  .tip-box { background: var(--amber-pale); border-left: 3px solid var(--amber); border-radius: 0 8px 8px 0; padding: 10px 12px; margin-top: 10px; font-size: 12px; color: var(--stone); line-height: 1.6; }
+
+  /* DAY CARDS */
+  .day-card {
+    background: white; border-radius: 14px; margin-bottom: 10px;
+    border: 1px solid var(--border); box-shadow: var(--shadow); overflow: hidden;
+  }
+  .day-card.class-day { border-color: var(--amber); border-width: 2px; }
+  .day-card.rest-day { border-color: #C8A000; border-width: 2px; }
+  .day-card.finish-day { border-color: var(--green); border-width: 2px; }
+  .day-card.book-required { border-color: var(--red); }
+
+  .day-header { padding: 12px 14px; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .day-num { width: 36px; height: 36px; border-radius: 50%; background: var(--stone-pale); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; color: var(--stone); flex-shrink: 0; }
+  .class-day .day-num { background: var(--amber); color: white; }
+  .rest-day .day-num { background: #C8A000; color: white; }
+  .finish-day .day-num { background: var(--green); color: white; }
+
+  .day-header-info { flex: 1; min-width: 0; }
+  .day-date { font-size: 11px; color: var(--text-muted); }
+  .day-route { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .day-km { font-size: 12px; color: var(--amber); font-weight: 700; flex-shrink: 0; }
+
+  .day-body { padding: 0 14px 12px; display: none; border-top: 1px solid var(--border); }
+  .day-body.open { display: block; padding-top: 12px; }
+
+  .detail-row { display: flex; gap: 8px; margin-bottom: 8px; font-size: 13px; align-items: flex-start; }
+  .detail-row .dk { color: var(--text-muted); flex-shrink: 0; width: 52px; font-size: 12px; padding-top: 1px; }
+  .detail-row .dv { flex: 1; font-weight: 400; line-height: 1.5; }
+  .detail-row .dv a { color: var(--blue); text-decoration: none; font-weight: 500; }
+  .detail-row .dv a.tel { color: var(--green); }
+  .detail-row .dv a.map { color: var(--amber); }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; margin-left: 4px; }
+  .badge-amber { background: var(--amber-pale); color: var(--amber); }
+  .badge-red { background: #FDECEA; color: var(--red); }
+  .badge-green { background: #E8F5EF; color: var(--green); }
+  .badge-blue { background: #EAF0F8; color: var(--blue); }
+
+  .note-box { background: var(--stone-pale); border-radius: 8px; padding: 9px 11px; font-size: 12px; color: var(--stone); line-height: 1.6; margin-top: 4px; }
+  .warn-box { background: #FFF8E8; border-left: 3px solid var(--amber); border-radius: 0 8px 8px 0; padding: 8px 10px; font-size: 12px; color: #7A5C00; line-height: 1.6; margin-top: 4px; }
+  .book-box { background: #FDECEA; border-left: 3px solid var(--red); border-radius: 0 8px 8px 0; padding: 8px 10px; font-size: 12px; color: var(--red); line-height: 1.6; margin-top: 4px; }
+
+  /* SEARCH */
+  .search-bar { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; width: 100%; font-size: 14px; margin-bottom: 12px; font-family: inherit; color: var(--text); }
+  .search-bar:focus { outline: none; border-color: var(--amber); }
+
+  /* BUDGET */
+  .budget-card { background: white; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); box-shadow: var(--shadow); margin-bottom: 12px; }
+  .budget-header { background: var(--stone); color: white; padding: 12px 16px; font-weight: 700; font-size: 14px; }
+  .budget-row { display: flex; justify-content: space-between; padding: 11px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .budget-row:last-child { border-bottom: none; }
+  .budget-row.total { background: var(--amber-pale); font-weight: 700; font-size: 14px; color: var(--amber); }
+
+  /* TIPS */
+  .tip-card { background: white; border-radius: 12px; padding: 14px; border: 1px solid var(--border); box-shadow: var(--shadow); margin-bottom: 10px; display: flex; gap: 12px; align-items: flex-start; }
+  .tip-emoji { font-size: 22px; flex-shrink: 0; }
+  .tip-title { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+  .tip-text { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+
+  /* SANTIAGO */
+  .activity-card { background: white; border-radius: 12px; padding: 14px; border: 1px solid var(--border); box-shadow: var(--shadow); margin-bottom: 10px; display: flex; gap: 12px; }
+  .activity-time { font-size: 11px; color: var(--text-muted); background: var(--stone-pale); border-radius: 8px; padding: 4px 8px; flex-shrink: 0; height: fit-content; text-align: center; }
+  .activity-title { font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+  .activity-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+  /* SECTION TITLE */
+  .section-title { font-family: 'Playfair Display', serif; font-size: 20px; color: var(--stone); margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .section-sub { font-size: 12px; color: var(--text-muted); margin-top: -10px; margin-bottom: 14px; }
+
+  /* FOOTER */
+  .footer { text-align: center; padding: 30px 20px; color: var(--text-muted); font-size: 13px; font-style: italic; }
+
+  /* HIDDEN */
+  .day-card.hidden { display: none; }
+
+  /* CHECKLIST */
+  .cl-group { background:white;border-radius:12px;border:1px solid var(--border);box-shadow:var(--shadow);margin-bottom:10px;overflow:hidden; }
+  .cl-group-header { background:var(--stone-pale);padding:10px 14px;font-size:13px;font-weight:700;color:var(--stone);display:flex;justify-content:space-between;align-items:center; }
+  .cl-group-count { font-size:11px;color:var(--amber);font-weight:700; }
+  .cl-item { display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background 0.15s; }
+  .cl-item:last-child { border-bottom:none; }
+  .cl-item:active { background:var(--stone-pale); }
+  .cl-item.checked { opacity:0.5; }
+  .cl-checkbox { width:22px;height:22px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s; }
+  .cl-item.checked .cl-checkbox { background:var(--green);border-color:var(--green); }
+  .cl-label { font-size:13px;flex:1;line-height:1.4; }
+  .cl-item.checked .cl-label { text-decoration:line-through;color:var(--text-muted); }
+  .cl-del { background:none;border:none;color:var(--text-muted);font-size:18px;padding:0 2px;cursor:pointer; }
+  .cl-badge-rec { background:#E8F5EF;color:var(--green);font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;flex-shrink:0; }
+
+  /* AFTER CAMINO */
+  .ac-city-tab { padding:8px 14px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;border:2px solid var(--border);background:white;color:var(--stone);flex-shrink:0;transition:all 0.2s; }
+  .ac-city-tab.active { background:var(--stone);color:white;border-color:var(--stone); }
+  .ac-entry-card { background:white;border-radius:12px;border:1px solid var(--border);box-shadow:var(--shadow);margin-bottom:10px;overflow:hidden; }
+  .ac-entry-header { padding:10px 14px;display:flex;align-items:center;gap:10px; }
+  .ac-entry-icon { font-size:18px;flex-shrink:0; }
+  .ac-entry-info { flex:1;min-width:0; }
+  .ac-entry-type { font-size:10px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px; }
+  .ac-entry-title { font-size:14px;font-weight:600;line-height:1.3; }
+  .ac-entry-meta { font-size:12px;color:var(--text-muted);margin-top:1px; }
+  .ac-entry-note { font-size:12px;color:var(--stone);line-height:1.5;padding:0 14px 10px;border-top:1px solid var(--border);padding-top:8px;margin-top:0; }
+  .ac-entry-del { background:none;border:none;color:var(--text-muted);font-size:18px;padding:0 4px;cursor:pointer;flex-shrink:0; }
+  .ac-add-entry-form { background:var(--stone-pale);border-radius:12px;border:1px solid var(--border);padding:14px;margin-top:6px; }
+  .ac-add-entry-form select, .ac-add-entry-form input, .ac-add-entry-form textarea { width:100%;border:1px solid var(--border);border-radius:8px;padding:9px 11px;font-size:13px;font-family:inherit;color:var(--text);background:white;margin-bottom:7px; }
+  .ac-add-entry-form select:focus, .ac-add-entry-form input:focus, .ac-add-entry-form textarea:focus { outline:none;border-color:var(--amber); }
+  .ac-add-entry-form textarea { min-height:56px;resize:vertical;margin-bottom:0; }
+  .ac-city-del-btn { background:none;border:none;font-size:12px;color:var(--red);cursor:pointer;padding:0; }
+
+  /* EDIT MODAL */
+  .modal-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:flex-end; justify-content:center; }
+  .modal-overlay.open { display:flex; }
+  .modal { background:white; border-radius:20px 20px 0 0; padding:20px 20px 0; width:100%; max-height:80vh; overflow-y:auto; display:flex; flex-direction:column; }
+  .modal-title { font-size:16px; font-weight:700; margin-bottom:16px; color:var(--stone); }
+  .modal label { display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px; margin-top:12px; }
+  .modal input, .modal textarea {
+    width:100%; border:1px solid var(--border); border-radius:8px;
+    padding:10px 12px; font-size:14px; font-family:inherit; color:var(--text);
+    background:var(--bg);
+  }
+  .modal textarea { min-height:72px; resize:vertical; }
+  .modal input:focus, .modal textarea:focus { outline:none; border-color:var(--amber); }
+  .modal-inner { flex:1; overflow-y:auto; padding-bottom:8px; }
+  .modal-btns { display:flex; gap:10px; padding:12px 0 max(20px, env(safe-area-inset-bottom)); background:white; position:sticky; bottom:0; }
+  .btn-save { flex:1; background:var(--amber); color:white; border:none; border-radius:10px; padding:13px; font-size:15px; font-weight:700; font-family:inherit; }
+  .btn-cancel { flex:0 0 80px; background:var(--stone-pale); color:var(--stone); border:none; border-radius:10px; padding:13px; font-size:15px; font-family:inherit; }
+  .edit-btn { background:none; border:1px solid var(--border); border-radius:6px; padding:3px 8px; font-size:11px; color:var(--text-muted); margin-left:6px; cursor:pointer; vertical-align:middle; }
+
+  /* EXPENSE SECTION in day card */
+  .expense-section { margin-top:10px; border-top:1px dashed var(--border); padding-top:10px; }
+  .expense-title { font-size:11px; color:var(--text-muted); margin-bottom:6px; font-weight:500; }
+  .expense-list { margin-bottom:8px; }
+  .expense-item { display:flex; align-items:center; gap:6px; margin-bottom:5px; font-size:13px; }
+  .expense-item-name { flex:1; color:var(--text); }
+  .expense-item-amt { font-weight:600; color:var(--stone); white-space:nowrap; }
+  .expense-item-del { background:none; border:none; color:var(--text-muted); font-size:16px; padding:0 2px; cursor:pointer; }
+  .expense-add-row { display:flex; flex-direction:column; gap:6px; margin-top:4px; }
+  .expense-add-row-top { display:flex; gap:6px; }
+  .expense-add-row-bot { display:flex; gap:6px; }
+  .expense-add-row input { border:1px solid var(--border); border-radius:6px; padding:9px 10px; font-size:14px; font-family:inherit; background:var(--bg); color:var(--text); }
+  .expense-add-row input:focus { outline:none; border-color:var(--amber); }
+  .expense-name-input { flex:1; }
+  .expense-amt-input { flex:1; }
+  .expense-add-btn { flex:1; background:var(--amber); color:white; border:none; border-radius:6px; padding:10px; font-size:14px; font-weight:700; cursor:pointer; }
+  .expense-day-total { font-size:13px; font-weight:700; color:var(--amber); text-align:right; margin-top:6px; padding-top:6px; border-top:1px solid var(--border); }
+  .currency-select { border:1px solid var(--border); border-radius:6px; padding:7px 6px; font-size:13px; font-family:inherit; background:var(--bg); color:var(--stone); font-weight:700; flex:0 0 52px; cursor:pointer; }
+  .currency-select:focus { outline:none; border-color:var(--amber); }
+  .expense-item-orig { font-size:11px; color:var(--text-muted); margin-left:2px; }
+
+  /* EXPENSE SUMMARY TAB */
+  .expense-summary-card { background:white; border-radius:14px; border:1px solid var(--border); box-shadow:var(--shadow); overflow:hidden; margin-bottom:12px; }
+  .expense-summary-header { background:var(--amber); color:white; padding:12px 16px; font-weight:700; font-size:14px; display:flex; justify-content:space-between; }
+  .expense-day-row { padding:10px 16px; border-bottom:1px solid var(--border); font-size:13px; display:flex; justify-content:space-between; align-items:flex-start; }
+  .expense-day-row:last-child { border-bottom:none; }
+  .expense-day-row .day-label { color:var(--text-muted); font-size:12px; }
+  .expense-day-row .day-total { font-weight:700; color:var(--stone); }
+  .expense-day-row .day-items { font-size:11px; color:var(--text-muted); margin-top:2px; }
+  .expense-grand-total { background:var(--amber-pale); padding:14px 16px; display:flex; justify-content:space-between; align-items:center; }
+  .expense-grand-total .label { font-size:13px; font-weight:700; color:var(--stone); }
+  .expense-grand-total .amount { font-size:22px; font-weight:700; color:var(--amber); }
+  .no-expense { padding:20px; text-align:center; color:var(--text-muted); font-size:13px; }
+
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">🐚 Vía de la Plata</div>
+  <div class="header-sub">은의길 순례 여정 플래너</div>
+  <div class="header-dates">2026년 6월 2일 ~ 7월 11일 · 40일 · 990km</div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:6px">
+    <div style="font-size:11px;opacity:0.8" id="sync-status"></div>
+    <button onclick="copyShareLink()" style="font-size:11px;background:rgba(255,255,255,0.2);border:none;border-radius:12px;padding:3px 10px;color:white;cursor:pointer" id="share-btn">🔗 기기 공유</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showSection('summary')">요약</div>
+  <div class="tab" onclick="showSection('classes')">수업일</div>
+  <div class="tab" onclick="showSection('schedule')">일정</div>
+  <div class="tab" onclick="showSection('budget')">예산</div>
+  <div class="tab" onclick="showSection('tips')">팁</div>
+  <div class="tab" onclick="showSection('santiago')">산티아고</div>
+  <div class="tab" onclick="showSection('expenses')">💶 경비</div>
+  <div class="tab" onclick="showSection('checklist')">✅ 준비물</div>
+  <div class="tab" onclick="showSection('aftercamino')">🌍 이후여행</div>
+</div>
+
+<!-- 요약 -->
+<div id="summary" class="section active">
+  <div class="summary-grid">
+    <div class="summary-card"><div class="label">총 거리</div><div class="value">990km</div><div class="sub">Via de la Plata + Sanabrés</div></div>
+    <div class="summary-card"><div class="label">총 기간</div><div class="value">40일</div><div class="sub">도보 37일 + 휴식 3일</div></div>
+    <div class="summary-card"><div class="label">출발</div><div class="value" style="font-size:14px">6/2(화)</div><div class="sub">세비야 대성당 앞</div></div>
+    <div class="summary-card"><div class="label">도착</div><div class="value" style="font-size:14px">7/11(토)</div><div class="sub">Santiago de Compostela</div></div>
+    <div class="summary-card"><div class="label">일 평균</div><div class="value">26.8km</div><div class="sub">도보 37일 기준</div></div>
+    <div class="summary-card"><div class="label">숙박 예산</div><div class="value">€621</div><div class="sub">알베르게 37박 + 호텔 2박</div></div>
+    <div class="summary-card full"><div class="label">숙박 방침</div><div class="value" style="font-size:14px">알베르게 37박 + 수업일 호텔 2박</div><div class="sub">전 구간 도보 — 택시 없음</div></div>
+  </div>
+
+  <div class="info-row"><div class="icon">📅</div><div class="content"><div class="label">1차 수업 (LA 기준)</div><div class="value">6/10(수) 오후 4~7시 → 스페인 6/11(목) 새벽 1~4시</div></div></div>
+  <div class="info-row"><div class="icon">📅</div><div class="content"><div class="label">2차 수업 (LA 기준)</div><div class="value">6/17(수) 오후 4~7시 → 스페인 6/18(목) 새벽 1~4시</div></div></div>
+
+  <div class="section-title" style="margin-top:20px">⚠️ 예약 필수 체크리스트</div>
+  <div class="info-row" style="border-left:3px solid #B03A2E; border-radius:0 10px 10px 0;">
+    <div class="icon">📞</div>
+    <div class="content">
+      <div class="label">Day 6 — Fuente de Cantos (6/7)</div>
+      <div class="value">Zaguán de la Plata <a href="tel:+34924500999" style="color:#2E7D5E">☎ +34 924 500 999</a></div>
+      <div class="sub">6/2 Seville 도착 후 전화 예약</div>
+    </div>
+  </div>
+  <div class="info-row" style="border-left:3px solid #B03A2E; border-radius:0 10px 10px 0;">
+    <div class="icon">📞</div>
+    <div class="content">
+      <div class="label">Day 31 — Puebla de Sanabria (7/2)</div>
+      <div class="value">Hostal Carlos V <a href="tel:+34980620268" style="color:#2E7D5E">☎ +34 980 620 268</a></div>
+      <div class="sub">6/2 Seville 도착 후 전화 예약</div>
+    </div>
+  </div>
+  <div class="info-row" style="border-left:3px solid #C8860A; border-radius:0 10px 10px 0;">
+    <div class="icon">⏰</div>
+    <div class="content">
+      <div class="label">Day 32 — Lubián (7/3)</div>
+      <div class="value">알베르게 16침대 — 예약 불가</div>
+      <div class="sub">당일 일찍 도착해서 선점 필수</div>
+    </div>
+  </div>
+
+  <!-- 일정 수정 자동 반영 -->
+  <div id="summary-edits-section" style="margin-top:4px"></div>
+
+  <!-- 수동 메모 -->
+  <div class="section-title" style="margin-top:20px">📝 요약 메모</div>
+  <div id="summary-memos-list"></div>
+  <div style="background:white;border-radius:10px;border:1px solid var(--border);padding:12px 14px;margin-bottom:8px">
+    <textarea id="summary-memo-input" placeholder="요약에 남기고 싶은 내용 (예: 항공편 변경, 숙소 메모 등)" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:9px 11px;font-size:13px;font-family:inherit;color:var(--text);background:var(--bg);min-height:60px;resize:vertical"></textarea>
+    <button onclick="addSummaryMemo()" style="margin-top:8px;width:100%;background:var(--amber);color:white;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">＋ 메모 추가</button>
+  </div>
+</div>
+
+<!-- 수업일 -->
+<div id="classes" class="section">
+  <div class="section-title">수업일 숙박 확정</div>
+
+  <div class="class-card">
+    <div class="class-card-header">📡 1차 수업 — 6/10(수) 밤 · Mérida</div>
+    <div class="class-card-body">
+      <div class="class-row"><span class="key">수업시간</span><span class="val">LA 오후 4~7시 → 스페인 새벽 1~4시</span></div>
+      <div class="class-row"><span class="key">당일 경로</span><span class="val">Villafranca → Torremejía → Mérida (42.8km)</span></div>
+      <div class="class-row"><span class="key">숙소</span><span class="val">Hostal Emeritae (C/ Sagasta 40) ✅</span></div>
+      <div class="class-row"><span class="key">예약</span><span class="val">Booking.com 예약 완료</span></div>
+      <div class="class-row"><span class="key">전화</span><span class="val"><a href="tel:+34924303183" class="tel">☎ +34 924 303 183</a></span></div>
+      <div class="class-row"><span class="key">이메일</span><span class="val"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="177e797178577f786463767b727a72657e6376723974787a">[email&#160;protected]</a></span></div>
+      <div class="class-row"><span class="key">위치</span><span class="val">로마 극장·박물관 150m</span></div>
+      <div class="class-row"><span class="key">가격</span><span class="val">€40–50 (확인)</span></div>
+      <div class="tip-box">⚠️ 42.8km 강행 — 새벽 4시 30분 출발 필수. Torremejía(km 27.5)에서 짧은 휴식 후 추가 15.3km.</div>
+    </div>
+  </div>
+
+  <div class="class-card">
+    <div class="class-card-header">📡 2차 수업 — 6/17(수) 밤 · Plasencia</div>
+    <div class="class-card-body">
+      <div class="class-row"><span class="key">수업시간</span><span class="val">LA 오후 4~7시 → 스페인 새벽 1~4시</span></div>
+      <div class="class-row"><span class="key">당일 경로</span><span class="val">Cañaveral → Plasencia (37.2km)</span></div>
+      <div class="class-row"><span class="key">숙소</span><span class="val">Hostal Goyesco Plaza (C/ Vinagras 14) ✅</span></div>
+      <div class="class-row"><span class="key">예약</span><span class="val">Hotels.com 예약 완료</span></div>
+      <div class="class-row"><span class="key">전화</span><span class="val"><a href="tel:+34927415374" class="tel">☎ +34 927 415 374</a></span></div>
+      <div class="class-row"><span class="key">위치</span><span class="val">Plaza Mayor 50m, 방음·WiFi</span></div>
+      <div class="class-row"><span class="key">가격</span><span class="val">€47–65</span></div>
+      <div class="tip-box">⚠️ 체크인 마감 20:30 — 도착 전 반드시 전화 연락. 37.2km 강행 후 도착이므로 즉시 샤워·휴식.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 일정 -->
+<div id="schedule" class="section">
+  <input class="search-bar" type="text" placeholder="🔍  도시명, Day 검색..." oninput="filterDays(this.value)">
+  <div id="days-container"></div>
+</div>
+
+<!-- 예산 -->
+<div id="budget" class="section">
+  <div class="section-title">예산 추산</div>
+  <div class="budget-card">
+    <div class="budget-header">💶 예상 지출</div>
+    <div class="budget-row"><span>알베르게 숙박</span><span>평균 €13 × 37박 = <strong>~€481</strong></span></div>
+    <div class="budget-row"><span>수업일 호텔 (2박)</span><span>평균 €70 × 2박 = <strong>~€140</strong></span></div>
+    <div class="budget-row"><span>식비 (순례자 메뉴 + 장보기)</span><span>€18/일 × 40일 = <strong>~€720</strong></span></div>
+    <div class="budget-row"><span>약품·물집·응급용품</span><span><strong>~€40</strong></span></div>
+    <div class="budget-row"><span>크리덴시알 + 잡비</span><span><strong>~€50</strong></span></div>
+    <div class="budget-row total"><span>총 예상 경비</span><span>약 €1,431–1,531</span></div>
+  </div>
+
+  <div class="tip-card">
+    <div class="tip-emoji">💶</div>
+    <div><div class="tip-title">현금 준비</div><div class="tip-text">사나브레스 구간 알베르게·시골 카페 대부분 현금만 가능. 항상 €100 이상 소지.</div></div>
+  </div>
+  <div class="tip-card">
+    <div class="tip-emoji">🎒</div>
+    <div><div class="tip-title">Correos 짐 배송</div><div class="tip-text">힘든 날은 Correos 짐 배송 서비스 활용 (구간당 €7~8). 알베르게에서 다음 알베르게로.</div></div>
+  </div>
+</div>
+
+<!-- 팁 -->
+<div id="tips" class="section">
+  <div class="section-title">핵심 팁</div>
+  <div class="tip-card"><div class="tip-emoji">⏰</div><div><div class="tip-title">새벽 출발</div><div class="tip-text">매일 5~6시 출발. 30km+ 구간은 4시 30분. 정오 전 도착이 목표.</div></div></div>
+  <div class="tip-card"><div class="tip-emoji">💧</div><div><div class="tip-title">물 1.5~2L 상시 휴대</div><div class="tip-text">Day 3 Castilblanco→Almadén 28.5km 완전 무보급. 여러 구간 20km+ 서비스 없음.</div></div></div>
+  <div class="tip-card"><div class="tip-emoji">🌡️</div><div><div class="tip-title">극심한 더위</div><div class="tip-text">6~7월 에스트레마두라 40°C+. 낮 12~3시 그늘 휴식 필수.</div></div></div>
+  <div class="tip-card"><div class="tip-emoji">☀️</div><div><div class="tip-title">자외선 차단</div><div class="tip-text">SPF 50+ 선크림, 챙 넓은 모자, UV차단 셔츠, 선글라스 — 매일 아침 적용.</div></div></div>
+  <div class="tip-card"><div class="tip-emoji">📱</div><div><div class="tip-title">필수 앱</div><div class="tip-text">Buen Camino (오프라인 GPS), Gronze.com (알베르게 현황·리뷰), Google Translate</div></div></div>
+  <div class="tip-card"><div class="tip-emoji">🎒</div><div><div class="tip-title">짐 7kg 이하</div><div class="tip-text">힘든 날은 Correos 짐 배송 서비스 (구간당 €7~8).</div></div></div>
+  <div class="tip-card"><div class="tip-emoji">💶</div><div><div class="tip-title">현금 €100 이상</div><div class="tip-text">사나브레스 구간 알베르게·시골 카페 대부분 현금만 가능.</div></div></div>
+  <div class="tip-card"><div class="tip-emoji">📋</div><div><div class="tip-title">크리덴시알</div><div class="tip-text">Seville Casa del Peregrino에서 발급. 매 알베르게마다 도장(sello) 수령.</div></div></div>
+  <div class="tip-card"><div class="tip-emoji">🛌</div><div><div class="tip-title">사나브레스 예약</div><div class="tip-text">소규모 알베르게 다수. 매일 아침 당일 저녁 전화 확인. ⚠️ Lubián 예약 불가 — 당일 일찍 도착. ⚠️ Fuente de Cantos·Puebla de Sanabria — 6/2 Seville 도착 첫날 전화.</div></div></div>
+  <div class="tip-card"><div class="tip-emoji">🩹</div><div><div class="tip-title">발 관리</div><div class="tip-text">Injinji 토삭스 매일 교환, Leukotape 예방 부착, 트레킹 폴로 하산 무릎 보호.</div></div></div>
+</div>
+
+<!-- 산티아고 -->
+<div id="santiago" class="section">
+  <div class="section-title">🎉 Santiago 도착 후</div>
+  <div class="section-sub">숙소: Hostal Pumar (Rúa das Galeras 28) — Booking.com 예약 완료 ✅ | <a href="tel:+34981585928" style="color:#2E7D5E">☎ +34 981 585 928</a></div>
+
+  <div class="activity-card"><div class="activity-time">1~2시간</div><div><div class="activity-title">🏅 콤포스텔라 증서 수령</div><div class="activity-desc">Rúa das Carretas 33. 매일 오전 9시~오후 9시. 크리덴시알 지참.</div></div></div>
+  <div class="activity-card"><div class="activity-time">1.5시간</div><div><div class="activity-title">⛪ 보타푸메이로 미사</div><div class="activity-desc">매일 정오 12시. 거대 향로가 대성당 천장을 가로지르는 장엄한 미사.</div></div></div>
+  <div class="activity-card"><div class="activity-time">자유</div><div><div class="activity-title">🏛️ 오브라도이로 광장</div><div class="activity-desc">도착의 성지. 마음껏 울고, 낯선 이와 포옹하고, 사진 남길 것.</div></div></div>
+  <div class="activity-card"><div class="activity-time">1시간</div><div><div class="activity-title">🗼 대성당 지붕 투어</div><div class="activity-desc">루프탑과 Pórtico de la Gloria 가이드 투어.</div></div></div>
+  <div class="activity-card"><div class="activity-time">1시간</div><div><div class="activity-title">🐙 Mercado de Abastos 시장</div><div class="activity-desc">문어(pulpo a feira), 엠파나다, 알바리뇨 와인.</div></div></div>
+  <div class="activity-card"><div class="activity-time">반나절</div><div><div class="activity-title">🏘️ 구시가 탐방 & 타파스</div><div class="activity-desc">유네스코 역사 지구 골목골목, 숨겨진 광장, 타파스 바.</div></div></div>
+  <div class="activity-card"><div class="activity-time">종일</div><div><div class="activity-title">🌊 Fisterra (땅끝마을) 당일치기</div><div class="activity-desc">버스 왕복 2시간. 일몰에 등산화 태우기. 대서양 수영.</div></div></div>
+  <div class="activity-card"><div class="activity-time">반나절</div><div><div class="activity-title">🌿 Padrón 마을</div><div class="activity-desc">시인 Rosalía de Castro의 고향, Padrón 고추.</div></div></div>
+</div>
+
+<!-- 경비 -->
+<div id="expenses" class="section">
+  <div class="section-title">💶 여정 경비 내역</div>
+  <div class="expense-summary-card">
+    <div class="expense-summary-header">
+      <span>총 여정 경비</span>
+      <span id="grand-total-display">€0</span>
+    </div>
+    <div id="expense-summary-list"></div>
+    <div class="expense-grand-total">
+      <span class="label">전체 합계</span>
+      <span class="amount" id="grand-total-big">€0</span>
+    </div>
+  </div>
+</div>
+
+<!-- 준비물 체크리스트 -->
+<div id="checklist" class="section">
+  <div class="section-title">✅ 준비물 체크리스트</div>
+  <div class="section-sub">항목을 탭하면 체크/해제됩니다. 진행률이 자동 저장됩니다.</div>
+
+  <!-- 진행률 바 -->
+  <div style="background:white;border-radius:12px;border:1px solid var(--border);padding:14px;margin-bottom:14px;box-shadow:var(--shadow)">
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+      <span style="font-size:13px;font-weight:700;color:var(--stone)">전체 진행률</span>
+      <span style="font-size:13px;font-weight:700;color:var(--amber)" id="cl-pct">0%</span>
+    </div>
+    <div style="background:var(--stone-pale);border-radius:20px;height:10px;overflow:hidden">
+      <div id="cl-bar" style="height:100%;background:linear-gradient(90deg,var(--amber),#E8A020);border-radius:20px;width:0%;transition:width 0.4s"></div>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:6px;text-align:right" id="cl-count">0 / 0 항목</div>
+  </div>
+
+  <div id="checklist-container"></div>
+
+  <!-- 커스텀 항목 추가 -->
+  <div style="background:white;border-radius:12px;border:1px solid var(--border);padding:14px;margin-top:10px;box-shadow:var(--shadow)">
+    <div style="font-size:13px;font-weight:700;color:var(--stone);margin-bottom:10px">➕ 항목 직접 추가</div>
+    <div style="display:flex;gap:8px">
+      <input type="text" id="cl-custom-input" placeholder="추가할 항목 입력" style="flex:1;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;color:var(--text);background:var(--bg)">
+      <button onclick="addCustomCheckItem()" style="background:var(--amber);color:white;border:none;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap">추가</button>
+    </div>
+  </div>
+</div>
+
+<!-- 이후 여행 -->
+<div id="aftercamino" class="section">
+  <div class="section-title">🌍 산티아고 이후 여행</div>
+  <div class="section-sub">더블린 · 런던 · 파리 · 독일 여러 도시 → 프랑크푸르트 OUT</div>
+
+  <!-- 도시 탭 -->
+  <div id="ac-city-tabs" style="display:flex;overflow-x:auto;gap:8px;margin-bottom:14px;padding-bottom:4px;scrollbar-width:none"></div>
+
+  <!-- 도시 컨텐츠 -->
+  <div id="ac-city-content"></div>
+
+  <!-- 새 도시 추가 -->
+  <div style="background:white;border-radius:12px;border:2px dashed var(--border);padding:14px;margin-top:10px">
+    <div style="font-size:13px;font-weight:700;color:var(--stone);margin-bottom:10px">🏙️ 새 도시 추가</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <input type="text" id="ac-city-name" placeholder="도시명 (예: 더블린)" style="flex:1;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;color:var(--text);background:var(--bg)">
+      <input type="text" id="ac-city-dates" placeholder="날짜 (예: 7/13~7/15)" style="flex:1;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;color:var(--text);background:var(--bg)">
+    </div>
+    <button onclick="addAcCity()" style="width:100%;background:var(--stone);color:white;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">＋ 도시 추가</button>
+  </div>
+</div>
+
+<!-- 편집 모달 -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div class="modal-title">✏️ <span id="modal-day-title"></span> 수정</div>
+    <div class="modal-inner">
+      <input type="hidden" id="modal-day-n">
+      <label>출발지 (From)</label>
+      <input type="text" id="modal-from" placeholder="출발 도시명">
+      <label>도착지 (To)</label>
+      <input type="text" id="modal-to" placeholder="도착 도시명">
+      <label>거리 (km) <span style="font-size:11px;color:var(--text-muted)">— 출도착 입력 후 자동계산 가능</span></label>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="number" id="modal-km" placeholder="예: 22.4" step="0.1" min="0" style="flex:1">
+        <button type="button" onclick="autoCalcKm()" style="background:var(--stone-pale);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--stone);cursor:pointer;white-space:nowrap">🗺 계산</button>
+      </div>
+      <label>알베르게 / 숙소명</label>
+      <input type="text" id="modal-albergue" placeholder="알베르게 또는 숙소명">
+      <label>가격 (€)</label>
+      <input type="text" id="modal-price" placeholder="예: €12–15">
+      <label>비고 / 메모</label>
+      <textarea id="modal-note" placeholder="메모를 입력하세요"></textarea>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">취소</button>
+      <button class="btn-save" onclick="saveEdit()">💾 저장</button>
+    </div>
+  </div>
+</div>
+
+<div class="footer">Buen Camino! 🐚<br><em>세비야에서 산티아고까지<br>모든 걸음이 기도가 되고, 이야기가 되고, 추억이 되기를.</em></div>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>const days = [
+  {n:1, date:'6/2(화)', from:'Seville', to:'Guillena', km:22.4, albergue:'Albergue Municipal de Guillena (Av. de la Vega s/n)', price:'€12–15', map:'https://www.google.com/maps/dir/Seville%20Cathedral%20Spain/Guillena%20Seville%20Spain', note:'세비야 대성당 앞 출발! Santiponce 로마 유적 경유', type:'normal'},
+  {n:2, date:'6/3(수)', from:'Guillena', to:'Castilblanco de los Arroyos', km:18.2, albergue:'Albergue Municipal de Castilblanco (Av. España s/n)', price:'€12–15', map:'https://www.google.com/maps/dir/Guillena%20Seville%20Spain/Castilblanco%20de%20los%20Arroyos%20Spain', note:'⚠ 다음 구간 28.5km 완전 무보급 — 물·식량 충분히 확보', type:'normal'},
+  {n:3, date:'6/4(목)', from:'Castilblanco', to:'Almadén de la Plata', km:28.5, albergue:'Albergue Municipal de Almadén de la Plata (C/ Real s/n)', price:'€12–15', map:'https://www.google.com/maps/dir/Castilblanco%20de%20los%20Arroyos%20Spain/Almaden%20de%20la%20Plata%20Spain', note:'⚠ 최장 무보급 구간 — 새벽 5시 출발, 물 2L 이상', type:'normal', warn:true},
+  {n:4, date:'6/5(금)', from:'Almadén de la Plata', to:'El Real de la Jara', km:13.9, albergue:'Albergue Municipal El Realejo (C/ Molino s/n) ⚠ Alojamiento del Peregrino·Molina 폐업', price:'€8', map:'https://www.google.com/maps/dir/Almaden%20de%20la%20Plata%20Spain/El%20Real%20de%20la%20Jara%20Spain', note:'짧은 구간 (구조적, 분할 불가) — 느긋하게 출발', type:'normal'},
+  {n:5, date:'6/6(토)', from:'El Real de la Jara', to:'Monesterio', km:20, albergue:'Albergue Las Moreras (32침대, €14) ⚠ 교구 알베르게 폐업 — Las Moreras 이용', price:'€14', map:'https://www.google.com/maps/dir/El%20Real%20de%20la%20Jara%20Spain/Monesterio%20Badajoz%20Spain', note:'km 1.3 지점 에스트레마두라 주 경계 통과. ⚠ 교구 알베르게 폐업 확인됨', type:'normal'},
+  {n:6, date:'6/7(일)', from:'Monesterio', to:'Fuente de Cantos', km:21.6, albergue:'⚠ 알베르게 없음 → Apartamentos Zaguán de la Plata (C/ Llerena 40)', price:'€35+', tel:'+34924500999', map:'https://www.google.com/maps/dir/Monesterio%20Badajoz%20Spain/Fuente%20de%20Cantos%20Badajoz%20Spain', note:'이베리코 하몬의 고향 출발. ⚠ 알베르게 없음 — Zaguán 사전예약 필수 (6/2 Seville에서 전화)', type:'normal', book:true, warn:true},
+  {n:7, date:'6/8(월)', from:'Fuente de Cantos', to:'Zafra', km:24, albergue:'Albergue Van Gogh (N-630 km 679) 또는 Albergue Municipal (C/ Sevilla)', price:'€15–18', map:'https://www.google.com/maps/dir/Fuente%20de%20Cantos%20Badajoz%20Spain/Zafra%20Badajoz%20Spain', note:'Van Gogh 알베르게는 카미노 길 위에 바로 있음', type:'normal'},
+  {n:8, date:'6/9(화)', from:'Zafra', to:'Villafranca de los Barros', km:19.7, albergue:'Albergue El Carmen (C/ San José s/n) ⚠ 현재 유일한 알베르게', price:'€12–15', map:'https://www.google.com/maps/dir/Zafra%20Badajoz%20Spain/Villafranca%20de%20los%20Barros%20Badajoz%20Spain', note:'포도밭 평탄한 길. El Carmen이 현재 유일한 알베르게. ⚠ Almendralejo는 알베르게 없음(호텔만) — 분할 불가', type:'normal'},
+  {n:9, date:'6/10(수)', from:'Villafranca de los Barros', to:'Mérida (Torremejía 경유)', km:42.8, albergue:'🎓 Hostal Emeritae (C/ Sagasta 40) — 예약 완료 ✅', price:'€40–50', tel:'+34924303183', map:'https://www.google.com/maps/dir/Villafranca%20de%20los%20Barros%20Badajoz%20Spain/Torremejia%20Badajoz%20Spain/Merida%20Badajoz%20Spain', note:'🎓 수업일 — 새벽 4:30 출발 필수. Torremejía(km 27.5) 경유 휴식. Mérida 호텔 체크인 → 새벽 1~4시 수업', type:'class'},
+  {n:10, date:'6/11(목)', from:'Mérida', to:'(휴식일 — Mérida 관광)', km:null, albergue:'—', price:'—', map:null, note:'💤 전일 휴식. 테아트로 로마노·수도교·국립 고고학 박물관 관람 추천', type:'rest'},
+  {n:11, date:'6/12(금)', from:'Mérida', to:'Alcuéscar', km:35.8, albergue:'Albergue Pampejo (C/ Fuente La Orden 82, €20) 또는 Casa de la Misericordia (기부) ⚠ Los Olivos 폐업', price:'€20/기부', map:'https://www.google.com/maps/dir/Merida%20Badajoz%20Spain/Alcuescar%20Caceres%20Spain', note:'재출발. Aljucén(km 16.4) 경유 — 새벽 5시 출발. ⚠ 35.8km 강행', type:'normal', warn:true},
+  {n:12, date:'6/13(토)', from:'Alcuéscar', to:'Cáceres', km:38, albergue:'Albergue Turístico Las Veletas (C/ General Ezponda 45)', price:'€18', map:'https://www.google.com/maps/dir/Alcuescar%20Caceres%20Spain/Caceres%20Spain', note:'Aldea del Cano·Valdesalor 경유 — ⚠ 38km 강행, 5시 출발 필수', type:'normal', warn:true},
+  {n:13, date:'6/14(일)', from:'Cáceres', to:'(휴식일 — Cáceres 관광)', km:null, albergue:'—', price:'—', map:null, note:'💤 보너스 휴식일. UNESCO 카세레스 구시가 충분히 탐방 — 궁전, 아랍 성벽, 유대인 지구', type:'rest'},
+  {n:14, date:'6/15(월)', from:'Cáceres', to:'Casar de Cáceres', km:12.3, albergue:'Albergue Municipal de Casar de Cáceres (Plaza Mayor s/n)', price:'€8–10', map:'https://www.google.com/maps/dir/Caceres%20Spain/Casar%20de%20Caceres%20Caceres%20Spain', note:'짧은 구간 — 오전에 Cáceres UNESCO 구시가 충분히 관광 후 출발', type:'normal'},
+  {n:15, date:'6/16(화)', from:'Casar de Cáceres', to:'Cañaveral', km:33, albergue:'Albergue Municipal de Cañaveral (C/ Real s/n)', price:'€10–14', map:'https://www.google.com/maps/dir/Casar%20de%20Caceres%20Caceres%20Spain/Canaveral%20Caceres%20Spain', note:'내일 수업일 Plasencia 도착을 위한 포지셔닝', type:'normal'},
+  {n:16, date:'6/17(수)', from:'Cañaveral', to:'Plasencia', km:37.2, albergue:'🎓 Hostal Goyesco Plaza (C/ Vinagras 14) — 예약 완료 ✅', price:'€47–65', tel:'+34927415374', map:'https://www.google.com/maps/dir/Canaveral%20Caceres%20Spain/Plasencia%20Caceres%20Spain', note:'🎓 수업일 — Grimaldo 경유 37.2km. ⚠ 체크인 마감 20:30 전 전화 필수. 호텔 체크인 → 새벽 1~4시 수업', type:'class'},
+  {n:17, date:'6/18(목)', from:'Plasencia', to:'(휴식일 — Plasencia 관광)', km:null, albergue:'—', price:'—', map:null, note:'💤 전일 휴식. 이중 대성당, 유대인 지구, 중세 성벽 탐방', type:'rest'},
+  {n:18, date:'6/19(금)', from:'Plasencia', to:'Aldeanueva del Camino', km:19.6, albergue:'Albergue Municipal de Aldeanueva del Camino (Av. Extremadura s/n)', price:'기부', map:'https://www.google.com/maps/dir/Plasencia%20Caceres%20Spain/Aldeanueva%20del%20Camino%20Caceres%20Spain', note:'재출발. Cáparra 로마 개선문 (이베리아 반도 최고의 로마 유적 중 하나)', type:'normal'},
+  {n:19, date:'6/20(토)', from:'Aldeanueva del Camino', to:'Baños de Montemayor', km:19.2, albergue:'Albergue Turístico Vía de la Plata (C/ Castañar 42)', price:'€16', tel:'+34655620515', map:'https://www.google.com/maps/dir/Aldeanueva%20del%20Camino%20Caceres%20Spain/Banos%20de%20Montemayor%20Caceres%20Spain', note:'짧지만 경유 마을 없음. 저녁 발레네아리오 온천욕 강력 추천!', type:'normal'},
+  {n:20, date:'6/21(일)', from:'Baños de Montemayor', to:'La Calzada de Béjar', km:28, albergue:'Albergue Municipal La Calzada de Béjar', price:'€12–14', map:'https://www.google.com/maps/dir/Banos%20de%20Montemayor%20Caceres%20Spain/La%20Calzada%20de%20Bejar%20Salamanca%20Spain', note:'Puerto de Béjar(1,430m) 급경사 오르막. 카스티야 이 레온 주 입성', type:'normal'},
+  {n:21, date:'6/22(월)', from:'La Calzada de Béjar', to:'Fuenterroble de Salvatierra', km:20.2, albergue:'Albergue Municipal de Fuenterroble de Salvatierra (C/ Real s/n)', price:'€12–15', map:'https://www.google.com/maps/dir/La%20Calzada%20de%20Bejar%20Salamanca%20Spain/Fuenterroble%20de%20Salvatierra%20Salamanca%20Spain', note:'은의 길 전체 절반 지점 도달! 메세타 고원 시작', type:'normal'},
+  {n:22, date:'6/23(화)', from:'Fuenterroble de Salvatierra', to:'San Pedro de Rozados', km:28.6, albergue:'Albergue Municipal de San Pedro de Rozados (C/ Mayor s/n)', price:'€12–15', map:'https://www.google.com/maps/dir/Fuenterroble%20de%20Salvatierra%20Salamanca%20Spain/San%20Pedro%20de%20Rozados%20Salamanca%20Spain', note:'그늘 없는 메세타 장거리 — 이른 출발 필수', type:'normal'},
+  {n:23, date:'6/24(수)', from:'San Pedro de Rozados', to:'Salamanca', km:23, albergue:'Albergue Municipal de Salamanca (C/ Alba de Tormes 13) 또는 El Camino (사설, €14)', price:'€12–16', map:'https://www.google.com/maps/dir/San%20Pedro%20de%20Rozados%20Salamanca%20Spain/Salamanca%20Spain', note:'UNESCO 황금빛 대학 도시 Salamanca 입성!', type:'normal'},
+  {n:24, date:'6/25(목)', from:'Salamanca', to:'El Cubo de la Tierra del Vino', km:36.4, albergue:'Albergue Municipal El Realejo (C/ Molino s/n) ⚠ Alojamiento del Peregrino·Molina 폐업', price:'€8', map:'https://www.google.com/maps/dir/Salamanca%20Spain/El%20Cubo%20de%20la%20Tierra%20del%20Vino%20Zamora%20Spain', note:'⚠ 중간 알베르게 없는 메세타 장거리 — 새벽 5시 출발', type:'normal', warn:true},
+  {n:25, date:'6/26(금)', from:'El Cubo de la Tierra del Vino', to:'Zamora', km:31.6, albergue:'Albergue Municipal de Zamora (C/ Los Carros s/n)', price:'€8–10', tel:'+34980534097', map:'https://www.google.com/maps/dir/El%20Cubo%20de%20la%20Tierra%20del%20Vino%20Zamora%20Spain/Zamora%20Spain', note:'로마네스크 교회 23개의 도시 Zamora 입성', type:'normal'},
+  {n:26, date:'6/27(토)', from:'Zamora', to:'Montamarta', km:18.6, albergue:'Albergue Municipal de Montamarta (N-630 도로변) — 정원 테이블, 평점 최고!', price:'기부', map:'https://www.google.com/maps/dir/Zamora%20Spain/Montamarta%20Zamora%20Spain', note:'다음 Granja까지 22.6km 무보급 — 여기서 식량·물 보충', type:'normal'},
+  {n:27, date:'6/28(일)', from:'Montamarta', to:'Granja de Moreruela', km:22.6, albergue:'Albergue de Peregrinos de Granja de Moreruela (C/ Real s/n)', price:'€12–15', map:'https://www.google.com/maps/dir/Montamarta%20Zamora%20Spain/Granja%20de%20Moreruela%20Zamora%20Spain', note:'⚑ 분기점: 카미노 사나브레스(Santiago 직행) 선택 권장', type:'normal'},
+  {n:28, date:'6/29(월)', from:'Granja de Moreruela', to:'Tábara', km:25.3, albergue:'Albergue Municipal de Tábara (마을 외곽, 열쇠 시청 또는 담배가게)', price:'기부', map:'https://www.google.com/maps/dir/Granja%20de%20Moreruela%20Zamora%20Spain/Tabara%20Zamora%20Spain', note:'카미노 사나브레스 시작! 시토회 수도원 폐허 경유', type:'normal'},
+  {n:29, date:'6/30(화)', from:'Tábara', to:'Santa Marta de Tera', km:22.7, albergue:'Albergue de Peregrinos de Santa Marta de Tera (C/ Iglesia 36)', price:'€5', tel:'+34980644005', map:'https://www.google.com/maps/dir/Tabara%20Zamora%20Spain/Santa%20Marta%20de%20Tera%20Zamora%20Spain', note:'로마네스크 Santa Marta 교회 바로 옆 알베르게 — 도장 필수', type:'normal'},
+  {n:30, date:'7/1(수)', from:'Santa Marta de Tera', to:'Mombuey', km:36.1, albergue:'Albergue Municipal de Mombuey (C/ Iglesia 2-14, 열쇠 9번 집)', price:'€12–15', map:'https://www.google.com/maps/dir/Santa%20Marta%20de%20Tera%20Zamora%20Spain/Mombuey%20Zamora%20Spain', note:'⚠ 최장 구간 중 하나 — 해뜨기 전 출발 필수', type:'normal', warn:true},
+  {n:31, date:'7/2(목)', from:'Mombuey', to:'Puebla de Sanabria', km:31.7, albergue:'Hostal Carlos V (C/ Braganza 6)', price:'€45–65', tel:'+34980620268', map:'https://www.google.com/maps/dir/Mombuey%20Zamora%20Spain/Puebla%20de%20Sanabria%20Zamora%20Spain', note:'스페인에서 가장 아름다운 중세 마을 중 하나. ⚠ 호스탈 사전예약 필수 — 6/2 Seville 도착 첫날 전화', type:'normal', book:true, warn:true},
+  {n:32, date:'7/3(금)', from:'Puebla de Sanabria', to:'Lubián', km:29.5, albergue:'Albergue de Peregrinos de Lubián (C/ Real s/n) ⚠ 16침대, 예약 불가', price:'€5', map:'https://www.google.com/maps/dir/Puebla%20de%20Sanabria%20Zamora%20Spain/Lubian%20Zamora%20Spain', note:'카스티야 이 레온 마지막 구간. ⚠ 예약 불가 — 당일 일찍 도착 필수!', type:'normal', book:true, warn:true},
+  {n:33, date:'7/4(토)', from:'Lubián', to:'A Gudiña', km:23.8, albergue:'Albergue de Peregrinos de A Gudiña (Rúa Toural s/n)  44침대  ☎ +34 696 820 722', price:'€8–10', map:'https://www.google.com/maps/dir/Lubian%20Zamora%20Spain/A%20Gudina%20Ourense%20Spain', note:'🌿 갈리시아 입성! 풍경 완전히 달라짐 — 녹색, 안개, 대서양 공기. 여기서 기피제 구입!', type:'normal'},
+  {n:34, date:'7/5(일)', from:'A Gudiña', to:'Laza', km:34, albergue:'Albergue de Peregrinos de Laza (C/ Concello s/n) — 34침대, 연중무휴', price:'€10–14', map:'https://www.google.com/maps/dir/A%20Gudina%20Ourense%20Spain/Laza%20Ourense%20Spain', note:'가장 아름다운 구간 — 해발 1,000m, As Portas 저수지 절경', type:'normal'},
+  {n:35, date:'7/6(월)', from:'Laza', to:'Xunqueira de Ambía', km:34, albergue:'Albergue Municipal de Xunqueira de Ambía (스포츠센터 옆) — 24침대', price:'€10–14', map:'https://www.google.com/maps/dir/Laza%20Ourense%20Spain/Xunqueira%20de%20Ambia%20Ourense%20Spain', note:'Vilar de Barrio(km 19) 경유 합산 — 긴 구간, 일찍 출발', type:'normal'},
+  {n:36, date:'7/7(화)', from:'Xunqueira de Ambía', to:'Ourense', km:21.8, albergue:'Albergue de Peregrinos de Ourense (C/ Eulogio Gómez Franqueira s/n)', price:'€12–15', map:'https://www.google.com/maps/dir/Xunqueira%20de%20Ambia%20Ourense%20Spain/Ourense%20Spain', note:'Ourense: 로마 다리, 무료 노천 온천 Las Burgas, 대성당', type:'normal'},
+  {n:37, date:'7/8(수)', from:'Ourense', to:'Cea', km:35, albergue:'Albergue Municipal de Cea (C/ Cea s/n) 또는 Albergue O Pino (사설)', price:'€10–14', map:'https://www.google.com/maps/dir/Ourense%20Spain/Cea%20Ourense%20Spain', note:'Cea 치즈(Queixo de Cea) 유명 마을 — 꼭 구매!', type:'normal'},
+  {n:38, date:'7/9(목)', from:'Cea', to:'Lalín', km:30, albergue:'Albergue Municipal de Lalín (C/ Cuntis s/n) 또는 Gran Albergue del Peregrino (Silleda)', price:'€12–15', map:'https://www.google.com/maps/dir/Cea%20Ourense%20Spain/Lalin%20Pontevedra%20Spain', note:'구불구불한 갈리시아 언덕길, 유칼립투스·소나무 숲', type:'normal'},
+  {n:39, date:'7/10(금)', from:'Lalín', to:'Ponte Ulla', km:30.1, albergue:'Albergue de Peregrinos de Ponte Ulla (C/ Real s/n)', price:'€12–15', map:'https://www.google.com/maps/dir/Lalin%20Pontevedra%20Spain/Ponte%20Ulla%20A%20Coruna%20Spain', note:'산티아고 전날 밤 — 감정이 차오르는 마지막 알베르게', type:'normal'},
+  {n:40, date:'7/11(토)', from:'Ponte Ulla', to:'Santiago de Compostela 🎉', km:21.2, albergue:'Hostal Pumar (Rúa das Galeras 28) — Booking.com 예약 완료 ✅', price:'~€63', tel:'+34981585928', map:'https://www.google.com/maps/dir/Ponte%20Ulla%20A%20Coruna%20Spain/Santiago%20de%20Compostela%20Spain', note:'도착!! 정오 보타푸메이로 미사. 오브라도이로 광장. 콤포스텔라 수령!', type:'finish'},
+];
+
+// ── localStorage 헬퍼 ────────────────────────────────────────────
+function lsGet(k) { try { return JSON.parse(localStorage.getItem(k)||'null'); } catch(e) { return null; } }
+function lsSet(k,v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} }
+
+function getExpenses() { return lsGet('camino_expenses') || {}; }
+function getEdits()    { return lsGet('camino_edits')    || {}; }
+
+// ── 동기화 (jsonbin.io) ───────────────────────────────────────────
+const JSONBIN_KEY = '$2a$10$p6I8pCsvIduNMaDA8l6vpeO.B2kf/YPfCnwGc5cCdpt6tdypFAczi';
+const BIN_ID_KEY = 'camino_bin_id';
+
+// ✅ 수정: 메모리 캐시 + localStorage 우선 — 앱 모드에서 해시가 날아가도 안전
+let _binId = localStorage.getItem(BIN_ID_KEY) || null;
+
+async function getBinId() {
+  // 1순위: 메모리 캐시
+  if (_binId) return _binId;
+
+  // 2순위: localStorage (앱 모드에서 해시가 없어도 복원)
+  const stored = localStorage.getItem(BIN_ID_KEY);
+  if (stored) { _binId = stored; return _binId; }
+
+  // 3순위: URL 해시 (브라우저 모드에서 공유 링크로 접속 시)
+  const hm = location.hash.match(/bin=([A-Za-z0-9]+)/);
+  if (hm) {
+    _binId = hm[1];
+    localStorage.setItem(BIN_ID_KEY, _binId);
+    return _binId;
+  }
+
+  // 4순위: 새 Bin 생성 (최초 1회만, localStorage에 영구 저장)
+  try {
+    const r = await fetch('https://api.jsonbin.io/v3/b', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Master-Key': JSONBIN_KEY,
+        'X-Bin-Name': 'camino-planner-2026',
+        'X-Bin-Private': 'true'
+      },
+      body: JSON.stringify({ expenses: {}, edits: {}, summary_memos: [], checklist: {}, cl_custom: [], ac_cities: [] })
+    });
+    if (!r.ok) return null;
+    const data = await r.json();
+    _binId = data.metadata.id;
+    localStorage.setItem(BIN_ID_KEY, _binId);
+    // 브라우저에서는 해시도 업데이트 (공유용)
+    if (!navigator.standalone) {
+      history.replaceState(null, '', '#bin=' + _binId);
+    }
+    return _binId;
+  } catch(e) { return null; }
+}
+
+// ✅ 수정: 경쟁조건 방지 — 전체 데이터를 한 번에 읽고 한 번에 씀
+// 개별 key 저장 대신 전체 snapshot을 저장하는 방식으로 변경
+let _saveTimer = null;
+let _pendingSave = {};
+
+function scheduleSave() {
+  // 300ms 디바운스: 연속 저장 요청을 묶어서 한 번만 전송
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async function() {
+    const id = await getBinId();
+    if (!id) return;
+    try {
+      // localStorage의 현재 전체 상태를 한 번에 저장
+      const payload = {
+        expenses:      lsGet('camino_expenses')      || {},
+        edits:         lsGet('camino_edits')         || {},
+        summary_memos: lsGet('camino_summary_memos') || [],
+        checklist:     lsGet('camino_checklist')     || {},
+        cl_custom:     lsGet('camino_cl_custom')     || [],
+        ac_cities:     lsGet('camino_ac_cities')     || []
+      };
+      await fetch('https://api.jsonbin.io/v3/b/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY },
+        body: JSON.stringify(payload)
+      });
+      setSyncStatus('✅');
+      setTimeout(() => setSyncStatus(''), 2000);
+    } catch(e) { setSyncStatus('⚠️ 저장 실패'); }
+  }, 300);
+}
+
+// remoteSave: 이제 scheduleSave를 호출 (key 파라미터는 무시해도 됨 — 전체 저장)
+async function remoteSave(key, val) {
+  scheduleSave();
+}
+
+async function remoteLoad(key) {
+  const id = await getBinId();
+  if (!id) return null;
+  try {
+    const r = await fetch('https://api.jsonbin.io/v3/b/' + id + '/latest', {
+      headers: { 'X-Master-Key': JSONBIN_KEY }
+    });
+    if (!r.ok) return null;
+    const data = await r.json();
+    return data.record ? data.record[key] : null;
+  } catch(e) { return null; }
+}
+
+function saveExpenses(data) { lsSet('camino_expenses', data); remoteSave('expenses', data); }
+function saveEdits(data)    { lsSet('camino_edits',    data); remoteSave('edits',    data); }
+
+async function copyShareLink() {
+  const id = await getBinId();
+  if (!id) { alert('동기화 서버 연결 실패. 잠시 후 다시 시도해주세요.'); return; }
+  const url = location.origin + location.pathname + '#bin=' + id;
+  try {
+    await navigator.clipboard.writeText(url);
+    const btn = document.getElementById('share-btn');
+    if (btn) { btn.textContent = '✅ 복사됨!'; setTimeout(()=>{ btn.textContent='🔗 기기 공유'; },2000); }
+  } catch(e) {
+    prompt('이 링크를 다른 기기에서 열면 동기화됩니다:', url);
+  }
+}
+
+function setSyncStatus(s) {
+  const el = document.getElementById('sync-status');
+  if (el) el.textContent = s;
+}
+
+async function syncOnLoad() {
+  setSyncStatus('🔄');
+  try {
+    const id = await getBinId();
+    if (!id) { setSyncStatus('📵'); return; }
+    const r = await fetch('https://api.jsonbin.io/v3/b/' + id + '/latest', {
+      headers: { 'X-Master-Key': JSONBIN_KEY }
+    });
+    if (!r.ok) { setSyncStatus('📵'); return; }
+    const data = await r.json();
+    const rec = data.record || {};
+    let changed = false;
+    // 각 키가 실제로 데이터가 있을 때만 덮어씀 (빈 객체/배열은 무시)
+    if (rec.expenses && Object.keys(rec.expenses).length)      { lsSet('camino_expenses', rec.expenses);           changed = true; }
+    if (rec.edits    && Object.keys(rec.edits).length)         { lsSet('camino_edits',    rec.edits);              changed = true; }
+    if (rec.summary_memos && rec.summary_memos.length)         { lsSet('camino_summary_memos', rec.summary_memos); changed = true; }
+    if (rec.checklist && Object.keys(rec.checklist).length)    { lsSet('camino_checklist', rec.checklist);         changed = true; }
+    if (rec.cl_custom && rec.cl_custom.length)                 { lsSet('camino_cl_custom', rec.cl_custom);         changed = true; }
+    if (rec.ac_cities && rec.ac_cities.length)                 { lsSet('camino_ac_cities', rec.ac_cities);         changed = true; }
+    if (changed) {
+      const c = document.getElementById('days-container');
+      if (c) { c.innerHTML = ''; buildDays(); }
+      renderSummaryMemos();
+      renderSummaryEdits();
+      renderChecklist();
+      renderAcCities();
+    }
+    setSyncStatus('✅');
+    setTimeout(() => setSyncStatus(''), 2000);
+  } catch(e) { setSyncStatus('⚠️'); }
+}
+
+// ── 일정 카드 렌더링 ─────────────────────────────────────────────
+function buildDays() {
+  const container = document.getElementById('days-container');
+  if (!container) return;
+  const edits    = getEdits();
+  const expenses = getExpenses();
+
+  days.forEach(function(d) {
+    const key = String(d.n);
+    const e   = edits[key] || {};
+
+    const from     = e.from     || d.from;
+    const to       = e.to       || d.to;
+    const km       = (e.km !== undefined && e.km !== null) ? e.km : d.km;
+    const albergue = e.albergue || d.albergue;
+    const price    = e.price    || d.price;
+    const note     = (e.note !== undefined) ? e.note : (d.note || '');
+
+    const card = document.createElement('div');
+    let cls = 'day-card';
+    if (d.type==='class')  cls += ' class-day';
+    else if (d.type==='rest')   cls += ' rest-day';
+    else if (d.type==='finish') cls += ' finish-day';
+    else if (d.book) cls += ' book-required';
+    card.className = cls;
+    card.id = 'day-card-' + d.n;
+    card.dataset.search = ('day'+d.n+' '+from+' '+to+' '+d.date+' '+albergue).toLowerCase();
+
+    const kmText  = (km !== null && km !== undefined && km !== '') ? km + 'km' : '휴식';
+    const mapLink = d.map  ? '<a href="' + d.map + '" class="map" target="_blank">📍 지도</a>' : '';
+    const telLink = d.tel  ? '<a href="tel:' + d.tel + '" class="tel">☎ ' + d.tel.replace('+34','+34 ') + '</a>' : '';
+
+    const dayExp   = expenses[key] || [];
+    const dayTotal = dayExp.reduce(function(s,x){ return s+(parseFloat(x.amt)||0); }, 0);
+
+    const expItemsHtml = dayExp.map(function(x,i) {
+      return '<div class="expense-item">'
+        + '<span class="expense-item-name">' + x.name + '</span>'
+        + '<span class="expense-item-amt">€' + parseFloat(x.amt).toFixed(2) + '</span>'
+        + '<button class="expense-item-del" onclick="deleteExpense(\'' + key + '\',' + i + ')">×</button>'
+        + '</div>';
+    }).join('');
+
+    const noteClass = d.book ? 'book-box' : (d.warn ? 'warn-box' : 'note-box');
+    const noteHtml  = note
+      ? '<div class="' + noteClass + '" id="note-' + d.n + '">' + note + '</div>'
+      : '<div class="note-box" id="note-' + d.n + '" style="display:none"></div>';
+
+    card.innerHTML =
+      '<div class="day-header" onclick="toggleDay(this)">'
+        + '<div class="day-num">' + d.n + '</div>'
+        + '<div class="day-header-info">'
+          + '<div class="day-date">' + d.date + '</div>'
+          + '<div class="day-route">' + from + ' → ' + to.replace(' 🎉','') + '</div>'
+        + '</div>'
+        + '<div class="day-km">' + kmText + '</div>'
+      + '</div>'
+      + '<div class="day-body" id="day-body-' + d.n + '">'
+        + '<div class="detail-row">'
+          + '<div class="dk">숙소</div>'
+          + '<div class="dv" id="alb-' + d.n + '">' + albergue
+            + ' <button class="edit-btn" onclick="openModal(' + d.n + ')">✏️ 수정</button>'
+          + '</div>'
+        + '</div>'
+        + '<div class="detail-row"><div class="dk">가격</div><div class="dv" id="price-' + d.n + '">' + price + '</div></div>'
+        + (telLink ? '<div class="detail-row"><div class="dk">전화</div><div class="dv">' + telLink + '</div></div>' : '')
+        + (mapLink ? '<div class="detail-row"><div class="dk">지도</div><div class="dv">' + mapLink + '</div></div>' : '')
+        + noteHtml
+        + '<div class="expense-section">'
+          + '<div class="expense-title">💶 당일 경비</div>'
+          + '<div class="expense-list" id="exp-list-' + d.n + '">' + expItemsHtml + '</div>'
+          + '<div class="expense-add-row">'
+            + '<div class="expense-add-row-top">'
+              + '<input class="expense-name-input" type="text" id="exp-name-' + d.n + '" placeholder="항목 (예: 숙박)">'
+            + '</div>'
+            + '<div class="expense-add-row-bot">'
+              + '<input class="expense-amt-input" type="number" id="exp-amt-' + d.n + '" placeholder="금액 입력" step="0.01" min="0">'
+              + '<select class="currency-select" id="exp-cur-' + d.n + '"><option value="EUR">€</option><option value="USD">$</option></select>'
+              + '<button class="expense-add-btn" onclick="addExpense(' + d.n + ')">추가</button>'
+            + '</div>'
+          + '</div>'
+          + '<div class="expense-day-total" id="exp-total-' + d.n + '">'
+            + (dayTotal > 0 ? '당일 합계: €' + dayTotal.toFixed(2) : '')
+          + '</div>'
+        + '</div>'
+      + '</div>';
+
+    container.appendChild(card);
+  });
+
+  updateExpenseSummary();
+}
+
+// ── 카드 토글 / 검색 ──────────────────────────────────────────────
+function toggleDay(header) {
+  const body = header.nextElementSibling;
+  body.classList.toggle('open');
+}
+
+function filterDays(q) {
+  const query = q.toLowerCase().trim();
+  document.querySelectorAll('.day-card').forEach(function(card) {
+    card.classList.toggle('hidden', query && !card.dataset.search.includes(query));
+  });
+}
+
+// ── 탭 전환 ──────────────────────────────────────────────────────
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(function(s) {
+    s.classList.toggle('active', s.id === id);
+  });
+  document.querySelectorAll('.tab').forEach(function(t) {
+    t.classList.toggle('active', t.getAttribute('onclick') === "showSection('" + id + "')");
+  });
+  if (id === 'expenses') updateExpenseSummary();
+  if (id === 'checklist') renderChecklist();
+  if (id === 'aftercamino') renderAcCities();
+  if (id === 'summary') { renderSummaryMemos(); renderSummaryEdits(); }
+}
+
+// ── 편집 모달 ────────────────────────────────────────────────────
+let currentEditDay = null;
+
+function openModal(n) {
+  currentEditDay = n;
+  const key = String(n);
+  const d   = days.find(function(x){ return x.n === n; });
+  const e   = getEdits()[key] || {};
+  document.getElementById('modal-day-title').textContent = 'Day ' + n + ' (' + d.date + ')';
+  document.getElementById('modal-day-n').value    = n;
+  document.getElementById('modal-from').value     = e.from     !== undefined ? e.from     : (d.from || '');
+  document.getElementById('modal-to').value       = e.to       !== undefined ? e.to       : (d.to   || '');
+  document.getElementById('modal-km').value       = e.km       !== undefined ? e.km       : (d.km   || '');
+  document.getElementById('modal-albergue').value = e.albergue || d.albergue || '';
+  document.getElementById('modal-price').value    = e.price    || d.price    || '';
+  document.getElementById('modal-note').value     = e.note     !== undefined ? e.note     : (d.note || '');
+  document.getElementById('editModal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('editModal').classList.remove('open');
+  currentEditDay = null;
+}
+
+function saveEdit() {
+  const n   = parseInt(document.getElementById('modal-day-n').value);
+  const key = String(n);
+  const kmVal = document.getElementById('modal-km').value;
+  const edits = getEdits();
+  edits[key] = {
+    from:     document.getElementById('modal-from').value.trim(),
+    to:       document.getElementById('modal-to').value.trim(),
+    km:       kmVal !== '' ? parseFloat(kmVal) : null,
+    albergue: document.getElementById('modal-albergue').value.trim(),
+    price:    document.getElementById('modal-price').value.trim(),
+    note:     document.getElementById('modal-note').value.trim(),
+  };
+  saveEdits(edits);
+
+  // DOM 즉시 업데이트
+  const albEl   = document.getElementById('alb-'   + n);
+  const priceEl = document.getElementById('price-' + n);
+  const noteEl  = document.getElementById('note-'  + n);
+  const routeEl = document.querySelector('#day-card-' + n + ' .day-route');
+  const kmEl    = document.querySelector('#day-card-' + n + ' .day-km');
+
+  if (albEl) albEl.innerHTML = edits[key].albergue
+    + ' <button class="edit-btn" onclick="openModal(' + n + ')">✏️ 수정</button>';
+  if (priceEl) priceEl.textContent = edits[key].price;
+  if (noteEl) {
+    if (edits[key].note) { noteEl.textContent = edits[key].note; noteEl.style.display = ''; }
+    else noteEl.style.display = 'none';
+  }
+  const d2 = days.find(function(x){ return x.n === n; });
+  if (routeEl && d2) {
+    const f = edits[key].from || d2.from;
+    const t = edits[key].to   || d2.to;
+    routeEl.textContent = f + ' → ' + t.replace(' 🎉','');
+    // 지도 링크 업데이트
+    const mapEl = document.querySelector('#day-card-' + n + ' a.map');
+    if (mapEl) {
+      mapEl.href = 'https://www.google.com/maps/dir/'
+        + encodeURIComponent(f + ' Spain') + '/'
+        + encodeURIComponent(t.replace(' 🎉','') + ' Spain')
+        + '/?travelmode=walking';
+    }
+  }
+  if (kmEl) {
+    const km = edits[key].km;
+    if (km !== null && km !== undefined && km !== '') {
+      kmEl.textContent = parseFloat(km) > 0 ? km + 'km' : '휴식';
+    }
+  }
+  // 검색 dataset 업데이트
+  const cardEl2 = document.getElementById('day-card-' + n);
+  if (cardEl2 && d2) {
+    const f2   = edits[key].from     || d2.from;
+    const t2   = edits[key].to       || d2.to;
+    const alb2 = edits[key].albergue || d2.albergue;
+    cardEl2.dataset.search = ('day'+n+' '+f2+' '+t2+' '+d2.date+' '+alb2).toLowerCase();
+  }
+  closeModal();
+  renderSummaryEdits();
+}
+
+function autoCalcKm() {
+  const from = document.getElementById('modal-from').value.trim();
+  const to   = document.getElementById('modal-to').value.trim();
+  if (!from || !to) { alert('출발지와 도착지를 먼저 입력하세요'); return; }
+  window.open(
+    'https://www.google.com/maps/dir/'
+    + encodeURIComponent(from + ' Spain') + '/'
+    + encodeURIComponent(to + ' Spain')
+    + '/?travelmode=walking',
+    '_blank'
+  );
+}
+
+// ── 환율 캐시 (당일 1회만 호출) ──────────────────────────────────
+let _usdRate = null; // USD → EUR 환율
+let _usdRateDate = null;
+
+async function getUsdToEur() {
+  const today = new Date().toISOString().slice(0,10);
+  if (_usdRate && _usdRateDate === today) return _usdRate;
+  // 캐시된 로컬 환율 확인
+  const cached = lsGet('camino_usd_rate');
+  if (cached && cached.date === today) { _usdRate = cached.rate; _usdRateDate = today; return _usdRate; }
+  try {
+    const r = await fetch('https://api.frankfurter.app/latest?from=USD&to=EUR');
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+    _usdRate = data.rates.EUR;
+    _usdRateDate = today;
+    lsSet('camino_usd_rate', {date: today, rate: _usdRate});
+    return _usdRate;
+  } catch(e) {
+    // 실패 시 고정 환율 사용
+    return 0.92;
+  }
+}
+
+// ── 경비 ─────────────────────────────────────────────────────────
+async function addExpense(n) {
+  const key    = String(n);
+  const nameEl = document.getElementById('exp-name-' + n);
+  const amtEl  = document.getElementById('exp-amt-'  + n);
+  const curEl  = document.getElementById('exp-cur-'  + n);
+  const name   = nameEl.value.trim();
+  const amt    = parseFloat(amtEl.value);
+  const cur    = curEl ? curEl.value : 'EUR';
+  if (!name || isNaN(amt) || amt <= 0) return;
+
+  let amtEur = amt;
+  let origUsd = null;
+  if (cur === 'USD') {
+    const rate = await getUsdToEur();
+    amtEur  = Math.round(amt * rate * 100) / 100;
+    origUsd = amt;
+  }
+
+  const expenses = getExpenses();
+  if (!expenses[key]) expenses[key] = [];
+  expenses[key].push({name: name, amt: amtEur, origUsd: origUsd});
+  saveExpenses(expenses);
+  nameEl.value = '';
+  amtEl.value  = '';
+  if (curEl) curEl.value = 'EUR';
+  refreshExpenseList(n);
+  updateExpenseSummary();
+}
+
+function deleteExpense(key, i) {
+  const expenses = getExpenses();
+  if (expenses[key]) { expenses[key].splice(i, 1); saveExpenses(expenses); }
+  refreshExpenseList(key);
+  updateExpenseSummary();
+}
+
+function refreshExpenseList(n) {
+  const key      = String(n);
+  const expenses = getExpenses();
+  const dayExp   = expenses[key] || [];
+  const dayTotal = dayExp.reduce(function(s,x){ return s+(parseFloat(x.amt)||0); }, 0);
+  const listEl   = document.getElementById('exp-list-'  + n);
+  const totalEl  = document.getElementById('exp-total-' + n);
+  if (listEl) listEl.innerHTML = dayExp.map(function(x,i) {
+    const origStr = x.origUsd ? '<span class="expense-item-orig">($' + parseFloat(x.origUsd).toFixed(2) + ')</span>' : '';
+    return '<div class="expense-item">'
+      + '<span class="expense-item-name">' + x.name + '</span>'
+      + '<span class="expense-item-amt">€' + parseFloat(x.amt).toFixed(2) + origStr + '</span>'
+      + '<button class="expense-item-del" onclick="deleteExpense(\'' + key + '\',' + i + ')">×</button>'
+      + '</div>';
+  }).join('');
+  if (totalEl) totalEl.textContent = dayTotal > 0 ? '당일 합계: €' + dayTotal.toFixed(2) : '';
+}
+
+function updateExpenseSummary() {
+  const expenses  = getExpenses();
+  const summaryEl = document.getElementById('expense-summary-list');
+  const grandEl   = document.getElementById('grand-total-display');
+  const grandBig  = document.getElementById('grand-total-big');
+  if (!summaryEl) return;
+  let grand = 0;
+  let rows  = '';
+  days.forEach(function(d) {
+    const key    = String(d.n);
+    const dayExp = expenses[key] || [];
+    if (!dayExp.length) return;
+    const total   = dayExp.reduce(function(s,x){ return s+(parseFloat(x.amt)||0); }, 0);
+    grand += total;
+    const itemStr = dayExp.map(function(x){ return x.name + ' €' + parseFloat(x.amt).toFixed(2) + (x.origUsd ? '($'+parseFloat(x.origUsd).toFixed(2)+')' : ''); }).join(' · ');
+    rows += '<div class="expense-day-row">'
+      + '<div>'
+        + '<div class="day-label">Day ' + d.n + ' ' + d.date + ' — ' + d.to.replace(' 🎉','') + '</div>'
+        + '<div class="day-items">' + itemStr + '</div>'
+      + '</div>'
+      + '<div class="expense-day-total" style="border:none;margin:0;padding:0">€' + total.toFixed(2) + '</div>'
+      + '</div>';
+  });
+  summaryEl.innerHTML = rows || '<div class="no-expense">아직 경비가 없어요 🐚<br>일정 탭에서 각 날짜를 열고 경비를 추가하세요!</div>';
+  if (grandEl)  grandEl.textContent  = '€' + grand.toFixed(2);
+  if (grandBig) grandBig.textContent = '€' + grand.toFixed(2);
+}
+
+// ── 초기화 ───────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  buildDays();
+  syncOnLoad();
+  renderSummaryMemos();
+  renderSummaryEdits();
+
+  // 탭 가로 스크롤 — 터치 드래그 직접 처리
+  const tabsEl = document.querySelector('.tabs');
+  if (tabsEl) {
+    let startX, scrollLeft, isDragging = false;
+    tabsEl.addEventListener('touchstart', function(e) {
+      startX = e.touches[0].pageX - tabsEl.offsetLeft;
+      scrollLeft = tabsEl.scrollLeft;
+      isDragging = true;
+    }, { passive: true });
+    tabsEl.addEventListener('touchmove', function(e) {
+      if (!isDragging) return;
+      const x = e.touches[0].pageX - tabsEl.offsetLeft;
+      tabsEl.scrollLeft = scrollLeft - (x - startX);
+    }, { passive: true });
+    tabsEl.addEventListener('touchend', function() { isDragging = false; }, { passive: true });
+  }
+});
+
+document.getElementById('editModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+</script>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+//  요약 탭 — 수동 메모 + 일정 수정 자동 반영
+// ════════════════════════════════════════════════════════════════
+function getSummaryMemos() { return lsGet('camino_summary_memos') || []; }
+function saveSummaryMemos(d) { lsSet('camino_summary_memos', d); remoteSave('summary_memos', d); }
+
+function addSummaryMemo() {
+  const inp = document.getElementById('summary-memo-input');
+  const txt = inp.value.trim();
+  if (!txt) return;
+  const memos = getSummaryMemos();
+  memos.unshift({ id: Date.now(), text: txt });
+  saveSummaryMemos(memos);
+  inp.value = '';
+  renderSummaryMemos();
+}
+
+function deleteSummaryMemo(id) {
+  const memos = getSummaryMemos().filter(function(m) { return m.id !== id; });
+  saveSummaryMemos(memos);
+  renderSummaryMemos();
+}
+
+function renderSummaryMemos() {
+  const el = document.getElementById('summary-memos-list');
+  if (!el) return;
+  const memos = getSummaryMemos();
+  el.innerHTML = memos.map(function(m) {
+    return '<div class="info-row" style="position:relative">'
+      + '<div class="icon">📌</div>'
+      + '<div class="content" style="flex:1"><div class="value" style="font-size:13px;line-height:1.6">' + m.text + '</div></div>'
+      + '<button onclick="deleteSummaryMemo(' + m.id + ')" style="background:none;border:none;color:var(--text-muted);font-size:18px;cursor:pointer;padding:0 4px">×</button>'
+      + '</div>';
+  }).join('');
+}
+
+function renderSummaryEdits() {
+  const el = document.getElementById('summary-edits-section');
+  if (!el) return;
+  const edits = getEdits();
+  const keys = Object.keys(edits);
+  if (!keys.length) { el.innerHTML = ''; return; }
+  let html = '<div class="section-title" style="margin-top:16px">🔄 일정 변경 내역</div>';
+  keys.forEach(function(k) {
+    const e = edits[k];
+    const d = days.find(function(x) { return String(x.n) === k; });
+    if (!d) return;
+    const from = e.from || d.from;
+    const to = e.to || d.to;
+    const alb = e.albergue || d.albergue;
+    html += '<div class="info-row">'
+      + '<div class="icon">✏️</div>'
+      + '<div class="content">'
+        + '<div class="label">Day ' + k + ' · ' + d.date + '</div>'
+        + '<div class="value" style="font-size:13px">' + from + ' → ' + to.replace(' 🎉','') + (e.km !== null && e.km !== undefined ? ' · ' + e.km + 'km' : '') + '</div>'
+        + (alb ? '<div class="sub">숙소: ' + alb + '</div>' : '')
+        + (e.note ? '<div class="sub" style="margin-top:2px">메모: ' + e.note + '</div>' : '')
+      + '</div></div>';
+  });
+  el.innerHTML = html;
+}
+
+// ════════════════════════════════════════════════════════════════
+//  준비물 체크리스트
+// ════════════════════════════════════════════════════════════════
+const CHECKLIST_GROUPS = [
+  { id:'bag', label:'🎒 배낭 & 우비', items:[
+    '오스프레이 스트라토스 36 (Osprey Stratos 36)',
+    '백패커 판초 우비 (REI, Navy)'
+  ]},
+  { id:'clothes', label:'👕 의류', items:[
+    '사하라 스트레치 컨버터블 팬츠 × 2벌',
+    '언더아머 히트기어 긴팔 × 2벌',
+    '엑소피시오 Give-N-Go 2.0 복서 × 3장',
+    '사파리 챙넓은 모자',
+    '선글라스 (UV 400)',
+    '가벼운 방풍 자켓/플리스 (저녁·고지대용)'
+  ]},
+  { id:'shoes', label:'👟 신발 & 양말', items:[
+    '알트라 론픽 9 (Altra Lone Peak 9)',
+    '인지니 양말 (Injinji) × 3쌍',
+    '슬리퍼'
+  ]},
+  { id:'sleep', label:'🛌 수면', items:[
+    'Sea to Summit Breeze Liner'
+  ]},
+  { id:'laundry', label:'🧼 세탁 & 위생', items:[
+    'Scrubba 워시백',
+    'Sea to Summit 빨랫줄',
+    '여행용 세탁 시트 50매',
+    'Sea to Summit 트레블 바디워시',
+    '칫솔 / 치약 (100ml 이하)',
+    '면도기',
+    '치실',
+    '마이크로파이버 여행 타월 × 2 (파랑·빨강)'
+  ]},
+  { id:'hydration', label:'💧 수분 & 영양', items:[
+    '스마트워터 긴 병 × 2개',
+    'Nuun 스포츠 전해질 탭 레몬라임 × 4팩',
+    '비상 에너지바 (첫날 구매 또는 지참)'
+  ]},
+  { id:'medical', label:'🩹 구급 & 의약품', items:[
+    'Leukotape P',
+    'Body Glide Foot Glide',
+    '손톱깎이 / 바늘·실 / 밴드',
+    '이부프로펜',
+    '소화제 & 지사제',
+    '선크림 SPF 50+',
+    '모기 기피제 (Puebla de Sanabria 현지 구입)',
+    '항히스타민제 (알레르기·벌레물림)',
+    '구강 보습제 또는 립밤',
+    '작은 알코올 스와브 (상처소독)'
+  ]},
+  { id:'electronics', label:'📱 전자기기', items:[
+    '스마트폰',
+    '아이패드 + Apple Magic Keyboard',
+    '유럽 콘센트 어댑터 (HANYCONY)',
+    '멀티탭',
+    '블루투스 이어폰 (수업용)',
+    'USB-C / 라이트닝 충전케이블',
+    '보조배터리 15000mAh',
+    '소형 손전등 또는 헤드램프 백업용 배터리'
+  ]},
+  { id:'trekking', label:'🥾 트레킹', items:[
+    'TheFitLife 트레킹 폴 (2개)',
+    '무릎 보호대 × 2',
+    '팔토시 × 2',
+    '헤드램프 (충전식) + 예비 배터리'
+  ]},
+  { id:'docs', label:'📄 서류 & 기타', items:[
+    '여권 (유효기간 확인)',
+    '여권 복사본 (별도 보관)',
+    '크리덴시알 (Seville 도착 첫날 발급)',
+    '현금 200유로',
+    '신용/체크카드 (해외 수수료 없는 카드)',
+    '여행자 보험 서류',
+    '비상 연락처 메모 (아날로그)',
+    '작은 자물쇠 (알베르게 락커용)',
+    '압축팩 (의류 부피 절감)'
+  ]}
+];
+
+function getClData() { return lsGet('camino_checklist') || {}; }
+function saveClData(d) { lsSet('camino_checklist', d); remoteSave('checklist', d); }
+function getClCustom() { return lsGet('camino_cl_custom') || []; }
+function saveClCustom(d) { lsSet('camino_cl_custom', d); remoteSave('cl_custom', d); }
+
+function toggleCheckItem(groupId, itemIdx) {
+  const data = getClData();
+  const key = groupId + '_' + itemIdx;
+  data[key] = !data[key];
+  saveClData(data);
+  renderChecklist();
+}
+
+function toggleCustomItem(idx) {
+  const data = getClData();
+  const key = 'custom_' + idx;
+  data[key] = !data[key];
+  saveClData(data);
+  renderChecklist();
+}
+
+function deleteCustomItem(idx) {
+  const custom = getClCustom();
+  custom.splice(idx, 1);
+  saveClCustom(custom);
+  const data = getClData();
+  // re-index data keys for custom items after deletion
+  const newData = {};
+  Object.keys(data).forEach(function(k) {
+    if (!k.startsWith('custom_')) newData[k] = data[k];
+  });
+  custom.forEach(function(_, i) { newData['custom_' + i] = data['custom_' + (i >= idx ? i + 1 : i)]; });
+  saveClData(newData);
+  renderChecklist();
+}
+
+function addCustomCheckItem() {
+  const inp = document.getElementById('cl-custom-input');
+  const txt = inp.value.trim();
+  if (!txt) return;
+  const custom = getClCustom();
+  custom.push(txt);
+  saveClCustom(custom);
+  inp.value = '';
+  renderChecklist();
+}
+
+function renderChecklist() {
+  const container = document.getElementById('checklist-container');
+  if (!container) return;
+  const data = getClData();
+  const custom = getClCustom();
+  let total = 0, checked = 0;
+
+  // Count all
+  CHECKLIST_GROUPS.forEach(function(g) { total += g.items.length; });
+  total += custom.length;
+  CHECKLIST_GROUPS.forEach(function(g) {
+    g.items.forEach(function(_, i) { if (data[g.id + '_' + i]) checked++; });
+  });
+  custom.forEach(function(_, i) { if (data['custom_' + i]) checked++; });
+
+  // Progress
+  const pct = total ? Math.round(checked / total * 100) : 0;
+  const pctEl = document.getElementById('cl-pct');
+  const barEl = document.getElementById('cl-bar');
+  const cntEl = document.getElementById('cl-count');
+  if (pctEl) pctEl.textContent = pct + '%';
+  if (barEl) barEl.style.width = pct + '%';
+  if (cntEl) cntEl.textContent = checked + ' / ' + total + ' 항목';
+
+  let html = '';
+  CHECKLIST_GROUPS.forEach(function(g) {
+    const gChecked = g.items.filter(function(_, i) { return data[g.id + '_' + i]; }).length;
+    html += '<div class="cl-group">'
+      + '<div class="cl-group-header">' + g.label + '<span class="cl-group-count">' + gChecked + '/' + g.items.length + '</span></div>';
+    g.items.forEach(function(item, i) {
+      const isChecked = !!data[g.id + '_' + i];
+      html += '<div class="cl-item' + (isChecked ? ' checked' : '') + '" onclick="toggleCheckItem(\'' + g.id + '\',' + i + ')">'
+        + '<div class="cl-checkbox">' + (isChecked ? '<span style="color:white;font-size:13px">✓</span>' : '') + '</div>'
+        + '<div class="cl-label">' + item + '</div>'
+        + '</div>';
+    });
+    html += '</div>';
+  });
+
+  // Custom items
+  if (custom.length) {
+    const cChecked = custom.filter(function(_, i) { return data['custom_' + i]; }).length;
+    html += '<div class="cl-group">'
+      + '<div class="cl-group-header">📦 직접 추가한 항목<span class="cl-group-count">' + cChecked + '/' + custom.length + '</span></div>';
+    custom.forEach(function(item, i) {
+      const isChecked = !!data['custom_' + i];
+      html += '<div class="cl-item' + (isChecked ? ' checked' : '') + '">'
+        + '<div class="cl-checkbox" onclick="toggleCustomItem(' + i + ')">' + (isChecked ? '<span style="color:white;font-size:13px">✓</span>' : '') + '</div>'
+        + '<div class="cl-label" onclick="toggleCustomItem(' + i + ')">' + item + '</div>'
+        + '<button class="cl-del" onclick="deleteCustomItem(' + i + ')">×</button>'
+        + '</div>';
+    });
+    html += '</div>';
+  }
+
+  container.innerHTML = html;
+}
+
+// ════════════════════════════════════════════════════════════════
+//  산티아고 이후 여행 (After Camino)
+// ════════════════════════════════════════════════════════════════
+const AC_DEFAULT_CITIES = [
+  { id:'dublin',    name:'더블린',        flag:'🇮🇪', dates:'' },
+  { id:'london',    name:'런던',          flag:'🇬🇧', dates:'' },
+  { id:'paris',     name:'파리',          flag:'🇫🇷', dates:'' },
+  { id:'germany',   name:'독일 (여러 도시)', flag:'🇩🇪', dates:'' },
+  { id:'frankfurt', name:'프랑크푸르트 OUT', flag:'✈️', dates:'' }
+];
+
+const ENTRY_ICONS = { transport:'🚂', hotel:'🏨', attraction:'🏛️', food:'🍽️', memo:'📝', flight:'✈️' };
+const ENTRY_LABELS = { transport:'교통', hotel:'숙소', attraction:'여행지', food:'맛집', memo:'메모', flight:'항공' };
+
+function getAcCities() {
+  const saved = lsGet('camino_ac_cities');
+  if (saved && saved.length) return saved;
+  return AC_DEFAULT_CITIES.map(function(c) { return Object.assign({}, c, {entries:[]}); });
+}
+function saveAcCities(d) { lsSet('camino_ac_cities', d); remoteSave('ac_cities', d); }
+
+let _acActiveCity = 0;
+
+function addAcCity() {
+  const name = document.getElementById('ac-city-name').value.trim();
+  const dates = document.getElementById('ac-city-dates').value.trim();
+  if (!name) return;
+  const cities = getAcCities();
+  cities.push({ id:'city_'+Date.now(), name:name, flag:'🌏', dates:dates, entries:[] });
+  saveAcCities(cities);
+  _acActiveCity = cities.length - 1;
+  document.getElementById('ac-city-name').value = '';
+  document.getElementById('ac-city-dates').value = '';
+  renderAcCities();
+}
+
+function deleteAcCity(idx) {
+  if (!confirm('도시를 삭제할까요?')) return;
+  const cities = getAcCities();
+  cities.splice(idx, 1);
+  saveAcCities(cities);
+  _acActiveCity = Math.max(0, _acActiveCity - 1);
+  renderAcCities();
+}
+
+function addAcEntry(cityIdx) {
+  const cities = getAcCities();
+  const type  = document.getElementById('ac-type-' + cityIdx).value;
+  const title = document.getElementById('ac-title-' + cityIdx).value.trim();
+  const meta  = document.getElementById('ac-meta-' + cityIdx).value.trim();
+  const note  = document.getElementById('ac-note-' + cityIdx).value.trim();
+  if (!title) { alert('내용을 입력하세요'); return; }
+  if (!cities[cityIdx].entries) cities[cityIdx].entries = [];
+  cities[cityIdx].entries.push({ type:type, title:title, meta:meta, note:note, id:Date.now() });
+  saveAcCities(cities);
+  document.getElementById('ac-title-' + cityIdx).value = '';
+  document.getElementById('ac-meta-' + cityIdx).value = '';
+  document.getElementById('ac-note-' + cityIdx).value = '';
+  renderAcCities();
+}
+
+function deleteAcEntry(cityIdx, entryIdx) {
+  const cities = getAcCities();
+  cities[cityIdx].entries.splice(entryIdx, 1);
+  saveAcCities(cities);
+  renderAcCities();
+}
+
+function renderAcCities() {
+  const tabsEl   = document.getElementById('ac-city-tabs');
+  const contentEl= document.getElementById('ac-city-content');
+  if (!tabsEl || !contentEl) return;
+  const cities = getAcCities();
+  if (_acActiveCity >= cities.length) _acActiveCity = 0;
+
+  // Tabs
+  tabsEl.innerHTML = cities.map(function(c, i) {
+    return '<div class="ac-city-tab' + (i === _acActiveCity ? ' active' : '') + '" onclick="_acActiveCity=' + i + ';renderAcCities()">'
+      + c.flag + ' ' + c.name
+      + (c.dates ? '<br><span style="font-size:10px;opacity:0.8">' + c.dates + '</span>' : '')
+      + '</div>';
+  }).join('');
+
+  // Content
+  const city = cities[_acActiveCity];
+  const idx  = _acActiveCity;
+
+  let entryHtml = '';
+  if (city.entries && city.entries.length) {
+    entryHtml = city.entries.map(function(e, ei) {
+      return '<div class="ac-entry-card">'
+        + '<div class="ac-entry-header">'
+          + '<div class="ac-entry-icon">' + (ENTRY_ICONS[e.type] || '📌') + '</div>'
+          + '<div class="ac-entry-info">'
+            + '<div class="ac-entry-type">' + (ENTRY_LABELS[e.type] || e.type) + '</div>'
+            + '<div class="ac-entry-title">' + e.title + '</div>'
+            + (e.meta ? '<div class="ac-entry-meta">' + e.meta + '</div>' : '')
+          + '</div>'
+          + '<button class="ac-entry-del" onclick="deleteAcEntry(' + idx + ',' + ei + ')">×</button>'
+        + '</div>'
+        + (e.note ? '<div class="ac-entry-note">' + e.note + '</div>' : '')
+        + '</div>';
+    }).join('');
+  } else {
+    entryHtml = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px">아직 항목이 없어요.<br>아래에서 교통·숙소·여행지 등을 추가하세요.</div>';
+  }
+
+  // Date edit row
+  const datesVal = city.dates || '';
+
+  contentEl.innerHTML =
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
+      + '<input type="text" value="' + datesVal + '" id="ac-dates-edit-' + idx + '" placeholder="날짜 범위 (예: 7/13~7/15)" style="flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;color:var(--text);background:white">'
+      + '<button onclick="saveAcCityDates(' + idx + ')" style="background:var(--amber);color:white;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer">저장</button>'
+      + '<button onclick="deleteAcCity(' + idx + ')" class="ac-city-del-btn">🗑 도시삭제</button>'
+    + '</div>'
+    + entryHtml
+    + '<div class="ac-add-entry-form">'
+      + '<div style="font-size:12px;font-weight:700;color:var(--stone);margin-bottom:8px">＋ 항목 추가</div>'
+      + '<select id="ac-type-' + idx + '">'
+        + '<option value="transport">🚂 교통편</option>'
+        + '<option value="flight">✈️ 항공</option>'
+        + '<option value="hotel">🏨 숙소</option>'
+        + '<option value="attraction">🏛️ 여행지</option>'
+        + '<option value="food">🍽️ 맛집</option>'
+        + '<option value="memo">📝 메모</option>'
+      + '</select>'
+      + '<input type="text" id="ac-title-' + idx + '" placeholder="이름/제목 (예: 유로스타 런던행, 노보텔 파리)"> '
+      + '<input type="text" id="ac-meta-' + idx + '" placeholder="날짜·시간·가격·예약번호 등"> '
+      + '<textarea id="ac-note-' + idx + '" placeholder="추가 메모 (선택)"></textarea>'
+      + '<button onclick="addAcEntry(' + idx + ')" style="width:100%;margin-top:8px;background:var(--stone);color:white;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">추가</button>'
+    + '</div>';
+}
+
+function saveAcCityDates(idx) {
+  const cities = getAcCities();
+  const val = document.getElementById('ac-dates-edit-' + idx);
+  if (val) cities[idx].dates = val.value.trim();
+  saveAcCities(cities);
+  renderAcCities();
+}
+</script>
+
+<script>
+// ── PWA: Service Worker 등록 ────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/via-de-la-plata/sw.js', { scope: '/via-de-la-plata/' })
+      .then(function(reg) {
+        console.log('[SW] 등록 완료, scope:', reg.scope);
+
+        // 새 SW가 대기 중이면 즉시 활성화
+        reg.addEventListener('updatefound', function() {
+          const newSW = reg.installing;
+          if (newSW) {
+            newSW.addEventListener('statechange', function() {
+              if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+                newSW.postMessage('SKIP_WAITING');
+              }
+            });
+          }
+        });
+      })
+      .catch(function(e) { console.warn('[SW] 등록 실패:', e); });
+
+    // SW로부터 'DO_SYNC' 메시지 수신 → 동기화 실행
+    navigator.serviceWorker.addEventListener('message', function(e) {
+      if (e.data === 'DO_SYNC') syncOnLoad();
+    });
+  });
+}
+
+// ── 온/오프라인 상태 표시 및 복구 시 자동 동기화 ────────────────
+window.addEventListener('online', function() {
+  setSyncStatus('🌐 온라인');
+  syncOnLoad();
+  setTimeout(() => setSyncStatus(''), 3000);
+});
+window.addEventListener('offline', function() {
+  setSyncStatus('📵 오프라인');
+});
+</script>
+</body>
+</html>
