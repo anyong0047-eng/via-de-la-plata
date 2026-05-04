@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>동기화 진단</title>
+<style>
+  body { font-family: -apple-system, sans-serif; padding: 20px; background: #f5f0e8; }
+  h2 { color: #7B4F2E; }
+  .card { background: white; border-radius: 12px; padding: 16px; margin: 12px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .label { font-size: 12px; color: #888; margin-bottom: 4px; }
+  .value { font-size: 14px; font-weight: 600; word-break: break-all; }
+  .ok    { color: #2E7D5E; }
+  .err   { color: #B03A2E; }
+  .warn  { color: #C8860A; }
+  button { background: #C8860A; color: white; border: none; border-radius: 10px; padding: 14px 20px; font-size: 15px; font-weight: 700; width: 100%; margin: 6px 0; cursor: pointer; }
+  button.sec { background: #7B4F2E; }
+  pre { font-size: 11px; background: #f0f0f0; padding: 10px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; }
+  .step { font-size: 13px; margin: 6px 0; padding: 8px 12px; border-radius: 8px; background: #faf8f4; border-left: 3px solid #C8860A; }
+</style>
+</head>
+<body>
+<h2>🔍 동기화 진단 도구</h2>
+<p style="font-size:13px;color:#666">이 페이지를 <strong>맥, 아이폰 앱, 아이패드 앱</strong>에서 각각 열어서 결과를 비교하세요.</p>
+
+<div class="card">
+  <div class="label">이 기기의 Bin ID (localStorage)</div>
+  <div class="value" id="bin-id">확인 중...</div>
+</div>
+
+<div class="card">
+  <div class="label">URL의 ?bin= 파라미터</div>
+  <div class="value" id="url-bin">없음</div>
+</div>
+
+<div class="card">
+  <div class="label">실행 모드</div>
+  <div class="value" id="mode">확인 중...</div>
+</div>
+
+<button onclick="runDiag()">▶ 전체 진단 실행</button>
+<button class="sec" onclick="resetBin()">🗑 이 기기 Bin ID 초기화 (리셋)</button>
+
+<div id="results"></div>
+
+<script>
+const JSONBIN_KEY = '$2a$10$p6I8pCsvIduNMaDA8l6vpeO.B2kf/YPfCnwGc5cCdpt6tdypFAczi';
+const BIN_ID_KEY  = 'camino_bin_id';
+
+function log(html) {
+  document.getElementById('results').innerHTML += html;
+}
+
+function step(msg, cls) {
+  return '<div class="step ' + (cls||'') + '">' + msg + '</div>';
+}
+
+window.onload = function() {
+  // 현재 Bin ID
+  const stored = localStorage.getItem(BIN_ID_KEY);
+  document.getElementById('bin-id').textContent = stored || '❌ 없음 (미설정)';
+  document.getElementById('bin-id').className   = 'value ' + (stored ? 'ok' : 'err');
+
+  // URL 파라미터
+  const urlBin = new URLSearchParams(location.search).get('bin');
+  document.getElementById('url-bin').textContent = urlBin || '없음';
+  document.getElementById('url-bin').className   = 'value ' + (urlBin ? 'ok' : 'warn');
+
+  // 실행 모드
+  const standalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+  document.getElementById('mode').textContent = standalone ? '📱 홈화면 앱 (standalone)' : '🌐 브라우저';
+  document.getElementById('mode').className   = 'value ' + (standalone ? 'warn' : 'ok');
+};
+
+async function runDiag() {
+  document.getElementById('results').innerHTML = '<h3>진단 결과</h3>';
+
+  // 1. Bin ID 확인
+  const stored = localStorage.getItem(BIN_ID_KEY);
+  const urlBin = new URLSearchParams(location.search).get('bin');
+
+  if (!stored && !urlBin) {
+    log(step('❌ Bin ID 없음 — 아직 동기화 연결이 설정되지 않았습니다', 'err'));
+  } else if (urlBin && urlBin !== stored) {
+    log(step('⚠️ URL의 bin=' + urlBin + ' 과 localStorage의 ' + stored + ' 가 다릅니다!', 'warn'));
+  } else {
+    log(step('✅ Bin ID: ' + (stored || urlBin), 'ok'));
+  }
+
+  const binId = stored || urlBin;
+  if (!binId) {
+    log(step('진단 중단 — Bin ID가 없습니다', 'err'));
+    return;
+  }
+
+  // 2. JSONBin API 호출 테스트
+  log(step('🔄 JSONBin API 연결 테스트 중...'));
+  try {
+    const r = await fetch('https://api.jsonbin.io/v3/b/' + binId + '/latest', {
+      headers: { 'X-Master-Key': JSONBIN_KEY }
+    });
+    const txt = await r.text();
+    if (r.ok) {
+      const data = JSON.parse(txt);
+      const memos = (data.record && data.record.summary_memos) || [];
+      log(step('✅ API 응답 성공 (HTTP ' + r.status + ')', 'ok'));
+      log(step('📋 서버의 메모 수: ' + memos.length + '개', 'ok'));
+      log('<pre>' + JSON.stringify(data.record, null, 2).substring(0, 800) + '</pre>');
+    } else {
+      log(step('❌ API 오류 HTTP ' + r.status + ': ' + txt, 'err'));
+      if (r.status === 401) log(step('→ API 키가 잘못됐거나 만료됐습니다', 'err'));
+      if (r.status === 404) log(step('→ Bin ID가 존재하지 않습니다 (삭제됐을 수 있음)', 'err'));
+      if (r.status === 429) log(step('→ API 요청 한도 초과! 이달 무료 한도를 넘었습니다', 'err'));
+    }
+  } catch(e) {
+    log(step('❌ 네트워크 오류: ' + e.message, 'err'));
+  }
+
+  // 3. localStorage 내용 확인
+  log('<div class="card"><div class="label">이 기기 localStorage 내용</div><pre>' +
+    'summary_memos: ' + (localStorage.getItem('camino_summary_memos') || '없음') + '\n' +
+    'expenses 키 수: ' + Object.keys(JSON.parse(localStorage.getItem('camino_expenses')||'{}')).length + '\n' +
+    'edits 키 수: '    + Object.keys(JSON.parse(localStorage.getItem('camino_edits')||'{}')).length +
+    '</pre></div>');
+}
+
+function resetBin() {
+  if (!confirm('이 기기의 Bin ID를 초기화합니다.\n맥에서 공유 링크를 받아 다시 연결해야 합니다.\n계속하시겠습니까?')) return;
+  localStorage.removeItem(BIN_ID_KEY);
+  location.reload();
+}
+</script>
+</body>
+</html>
