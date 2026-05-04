@@ -165,6 +165,26 @@
   /* HIDDEN */
   .day-card.hidden { display: none; }
 
+  /* PULL TO REFRESH */
+  .ptr-indicator {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 0; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(160deg, #7B4F2E 0%, #C8860A 100%);
+    color: white; font-size: 13px; font-weight: 600;
+    z-index: 9998; transition: height 0.15s ease;
+    gap: 8px;
+  }
+  .ptr-indicator.visible { height: 52px; }
+  .ptr-spinner {
+    width: 18px; height: 18px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: ptr-spin 0.7s linear infinite;
+  }
+  @keyframes ptr-spin { to { transform: rotate(360deg); } }
+
   /* CHECKLIST */
   .cl-group { background:white;border-radius:12px;border:1px solid var(--border);box-shadow:var(--shadow);margin-bottom:10px;overflow:hidden; }
   .cl-group-header { background:var(--stone-pale);padding:10px 14px;font-size:13px;font-weight:700;color:var(--stone);display:flex;justify-content:space-between;align-items:center; }
@@ -255,6 +275,9 @@
 </head>
 <body>
 
+<div class="ptr-indicator" id="ptr-indicator">
+  <div id="ptr-text">⬇ 당겨서 동기화</div>
+</div>
 <div class="header">
   <div class="header-title">🐚 Vía de la Plata</div>
   <div class="header-sub">은의길 순례 여정 플래너</div>
@@ -1069,7 +1092,70 @@ document.addEventListener('DOMContentLoaded', function() {
     }, { passive: true });
     tabsEl.addEventListener('touchend', function() { isDragging = false; }, { passive: true });
   }
+
+  // ── Pull-to-Refresh ──────────────────────────────────────────
+  initPullToRefresh();
 });
+
+function initPullToRefresh() {
+  const indicator = document.getElementById('ptr-indicator');
+  const ptrText   = document.getElementById('ptr-text');
+  if (!indicator) return;
+
+  const THRESHOLD = 72;   // 이 픽셀 이상 당기면 동기화 실행
+  let startY      = 0;
+  let pulling     = false;
+  let triggered   = false;
+
+  document.addEventListener('touchstart', function(e) {
+    // 최상단일 때만 pull 시작
+    if (window.scrollY === 0) {
+      startY   = e.touches[0].clientY;
+      pulling  = true;
+      triggered = false;
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function(e) {
+    if (!pulling) return;
+    const delta = e.touches[0].clientY - startY;
+    if (delta <= 0) { pulling = false; return; }
+
+    // 당기는 거리에 비례해 인디케이터 표시
+    const progress = Math.min(delta / THRESHOLD, 1);
+    indicator.classList.add('visible');
+
+    if (delta >= THRESHOLD && !triggered) {
+      ptrText.textContent = '🔄 놓으면 동기화';
+    } else {
+      ptrText.innerHTML = '⬇ 당겨서 동기화';
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', function(e) {
+    if (!pulling) return;
+    pulling = false;
+    const delta = (e.changedTouches[0] ? e.changedTouches[0].clientY : 0) - startY;
+
+    if (delta >= THRESHOLD) {
+      // 동기화 실행
+      ptrText.innerHTML = '<div class="ptr-spinner"></div> 동기화 중...';
+      syncOnLoad().then(function() {
+        ptrText.textContent = '✅ 완료!';
+        setTimeout(function() {
+          indicator.classList.remove('visible');
+        }, 1000);
+      }).catch(function() {
+        ptrText.textContent = '⚠️ 실패';
+        setTimeout(function() {
+          indicator.classList.remove('visible');
+        }, 1500);
+      });
+    } else {
+      indicator.classList.remove('visible');
+    }
+  }, { passive: true });
+}
 
 document.getElementById('editModal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
