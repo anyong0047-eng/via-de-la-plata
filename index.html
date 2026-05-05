@@ -656,13 +656,14 @@ async function syncOnLoad() {
       setTimeout(() => setSyncStatus(''), 2000);
       return;
     }
+    // 서버 데이터가 더 새로우면 빈 값도 포함해서 무조건 덮어씀 (삭제 반영)
     let changed = false;
-    if (rec.expenses      && Object.keys(rec.expenses).length)   { lsSet('camino_expenses',      rec.expenses);      changed = true; }
-    if (rec.edits         && Object.keys(rec.edits).length)      { lsSet('camino_edits',          rec.edits);         changed = true; }
-    if (rec.summary_memos && rec.summary_memos.length)           { lsSet('camino_summary_memos',  rec.summary_memos); changed = true; }
-    if (rec.checklist     && Object.keys(rec.checklist).length)  { lsSet('camino_checklist',      rec.checklist);     changed = true; }
-    if (rec.cl_custom     && rec.cl_custom.length)               { lsSet('camino_cl_custom',      rec.cl_custom);     changed = true; }
-    if (rec.ac_cities     && rec.ac_cities.length)               { lsSet('camino_ac_cities',      rec.ac_cities);     changed = true; }
+    if (rec.expenses      !== undefined) { lsSet('camino_expenses',      rec.expenses);      changed = true; }
+    if (rec.edits         !== undefined) { lsSet('camino_edits',          rec.edits);         changed = true; }
+    if (rec.summary_memos !== undefined) { lsSet('camino_summary_memos',  rec.summary_memos); changed = true; }
+    if (rec.checklist     !== undefined) { lsSet('camino_checklist',      rec.checklist);     changed = true; }
+    if (rec.cl_custom     !== undefined) { lsSet('camino_cl_custom',      rec.cl_custom);     changed = true; }
+    if (rec.ac_cities     !== undefined) { lsSet('camino_ac_cities',      rec.ac_cities);     changed = true; }
     if (changed) {
       const c = document.getElementById('days-container');
       if (c) { c.innerHTML = ''; buildDays(); }
